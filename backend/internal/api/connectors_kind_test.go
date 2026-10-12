@@ -19,7 +19,7 @@ import (
 
 // Every Baizhi kind validates the key against a free endpoint before saving it.
 func TestBaizhiConnectionsValidateKeyBeforeSaving(t *testing.T) {
-	for kind, check := range map[string]string{"music": "/generations"} {
+	for kind, check := range map[string]string{"music": "/generations", "image": "/pricing"} {
 		t.Run(kind, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			db, e := store.OpenDB(&config.Config{StorageDriver: "sqlite", SQLitePath: filepath.Join(t.TempDir(), "api.db")})
