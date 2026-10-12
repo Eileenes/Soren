@@ -63,7 +63,7 @@ jobs:
         env:
           SOREN_BUNDLE_DIR: frontend/src-tauri/target/aarch64-apple-darwin/release/bundle
         run: npm run release:package
-      - name: Publish preview release
+      - name: Publish latest release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -75,8 +75,8 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Soren $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Soren $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           fi
           VERSION="${RELEASE_TAG#v}"
           gh release upload "$RELEASE_TAG" "release/Soren-${VERSION}-macOS-arm64.dmg" "release/SHA256SUMS-${VERSION}.txt" --clobber
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest

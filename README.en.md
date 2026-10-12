@@ -7,6 +7,7 @@
   <p>Give each Bot a role, let it remember your preferences, connect your apps, and turn ideas into results you can inspect.</p>
   <p>Local memory · Multi-Bot collaboration · App connections · Mobile access</p>
   <p>
+    <a href="https://github.com/Eileenes/Soren/releases/latest">Download macOS</a> ·
     <a href="#getting-started">Get started</a> ·
     <a href="#connect-your-phone-to-your-mac">Mobile access</a> ·
     <a href="#run-from-source">Develop and build</a> ·

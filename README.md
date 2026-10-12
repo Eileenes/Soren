@@ -7,6 +7,7 @@
   <p>让不同的 Bot 各司其职，记住你的偏好，连接常用应用，把想法变成可查看的成果。</p>
   <p>本地记忆 · 多 Bot 协作 · 应用连接 · 手机联动</p>
   <p>
+    <a href="https://github.com/Eileenes/Soren/releases/latest">下载 macOS</a> ·
     <a href="#开始使用">开始使用</a> ·
     <a href="#手机如何关联-mac">手机联动</a> ·
     <a href="#从源码运行">开发与构建</a> ·

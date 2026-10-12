@@ -14,7 +14,7 @@ git tag v0.4.3
 git push origin v0.4.3
 ```
 
-`.github/workflows/release.yml` 将检查版本和标签、扫描历史密钥、执行前端/Go/Rust 检查，构建 arm64 DMG，验证签名和磁盘镜像，生成校验文件，上传到草稿 Release 后再发布为预览版。安装包不进入 Git 历史。失败时不会发布不完整版本；已发布版本不会覆盖，修复后请递增版本号。
+`.github/workflows/release.yml` 将检查版本和标签、扫描历史密钥、执行前端/Go/Rust 检查，构建 arm64 DMG，验证签名和磁盘镜像，生成校验文件，上传到草稿 Release 后再公开并设为 Latest，让仓库首页显示下载版本。安装包不进入 Git 历史。失败时不会发布不完整版本；已发布版本不会覆盖，修复后请递增版本号。
 
 也可以在 Actions → Release macOS → Run workflow 填写已存在的标签重试失败的发布。保持标签不可变，不要把标签移动到另一份源码。
 
@@ -35,4 +35,4 @@ npm run release:package
 
 生成 `release/Soren-版本号-macOS-arm64.dmg` 和 `release/SHA256SUMS-版本号.txt`。手动发布时同样先创建指向已验证源码的标签，上传到草稿并核对资源完整后再公开。不要从开发目录拷贝 `.env`、数据库、用户配置或证书到 Release。
 
-预览版不会被 GitHub 的 `/releases/latest` 当作稳定版本；下载入口使用 `/releases` 列表或明确的版本链接。
+GitHub Release 使用普通发布并设为 Latest，首页侧栏和 `/releases/latest` 均可找到当前下载版本。产品仍处于开发预览阶段，发布说明继续注明签名、公证及 iOS 限制；Latest 仅表示当前推荐下载版本。
