@@ -1,3 +1,4 @@
+import { IOSDownload } from "./IOSDownload";
 import { useEffect, useState } from "react";
 import { connectionRequest } from "../services/connections";
 import { Button, Switch } from "./ui";
@@ -73,6 +74,7 @@ export function MobileDevices() {
     });
   return (
     <div className="space-y-5">
+      <IOSDownload />
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-ink-1">手机连接</p>

@@ -37,3 +37,9 @@ secrets/
 docs/previews/
 frontend/src-tauri/gen/
 mobile/src-tauri/gen/
+
+# Signed iOS packages are distributed through Apple, never committed.
+*.ipa
+*.xcarchive/
+*.pfx
+*.cer

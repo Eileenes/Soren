@@ -14,7 +14,7 @@ export async function connectionRequest<T>(method: string, path: string, data?: 
 }
 export async function openExternal(url: string) {
   const parsed = new URL(url);
-  if (parsed.protocol !== 'https:' || !['github.com', 'accounts.google.com', 'developers.notion.com', 'console.cloud.google.com'].includes(parsed.hostname)) throw new Error('不支持的授权地址');
+  if (parsed.protocol !== 'https:' || !['github.com', 'accounts.google.com', 'developers.notion.com', 'console.cloud.google.com', 'testflight.apple.com', 'apps.apple.com'].includes(parsed.hostname) || parsed.username || parsed.password || parsed.port) throw new Error('不支持的外部地址');
   if ('__TAURI_INTERNALS__' in window) await invoke('open_external', {url});
   else window.open(url, '_blank', 'noopener,noreferrer');
 }

@@ -1,0 +1,82 @@
+name: Release macOS
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag (for example v0.4.2)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      SOREN_RELEASE_RELAY_URL: ${{ vars.SOREN_RELEASE_RELAY_URL }}
+      SOREN_RELEASE_MOBILE_URL: ${{ vars.SOREN_RELEASE_MOBILE_URL }}
+      VITE_SOREN_RELAY_URL: ${{ vars.SOREN_RELEASE_RELAY_URL }}
+      VITE_SOREN_IOS_DOWNLOAD_URL: ${{ vars.SOREN_IOS_DOWNLOAD_URL }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          targets: aarch64-apple-darwin
+      - name: Validate release
+        run: |
+          node scripts/check-release.mjs "$RELEASE_TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+      - name: Scan source history for secrets
+        run: go run github.com/zricethezav/gitleaks/v8@v8.30.1 git . --redact --no-banner
+      - name: Install and test
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend test
+          (cd backend && go test -race ./... && go vet ./...)
+          npm run build:backend
+          cargo test --locked --manifest-path frontend/src-tauri/Cargo.toml
+      - name: Build macOS Apple Silicon
+        run: npm run build:mac -- --target aarch64-apple-darwin --ci
+      - name: Verify installer and generate checksum
+        env:
+          SOREN_BUNDLE_DIR: frontend/src-tauri/target/aarch64-apple-darwin/release/bundle
+        run: npm run release:package
+      - name: Publish preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Never overwrite an already published release or replace its assets.
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != true ]]; then
+              echo "Release already published; retaining its original assets."
+              exit 0
+            fi
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Soren $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi
+          VERSION="${RELEASE_TAG#v}"
+          gh release upload "$RELEASE_TAG" "release/Soren-${VERSION}-macOS-arm64.dmg" "release/SHA256SUMS-${VERSION}.txt" --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false

@@ -12,7 +12,7 @@
     <a href="#run-from-source">Develop and build</a> ·
     <a href="#documentation">Documentation</a>
   </p>
-  <sub>Developer Preview 0.4.1 · macOS Apple Silicon · iOS under development and validation</sub>
+  <sub>Developer Preview 0.4.2 · macOS Apple Silicon · iOS under development and validation</sub>
 </div>
 
 ---
@@ -44,9 +44,9 @@ The current app interface uses Chinese labels. This guide includes the original 
 
 ### 1. Install and open
 
-Open `Soren-0.4.1-macOS-arm64.dmg`, drag **Soren** into Applications, and launch it. You can skip the first-use setup guide and reopen it from the top of the app later.
+Open `Soren-0.4.2-macOS-arm64.dmg`, drag **Soren** into Applications, and launch it. You can skip the first-use setup guide and reopen it from the top of the app later.
 
-This repository contains source code, not installers. Existing installers are stored in the development machine's `release/` directory. To build your own, see [Run from source](#run-from-source). The current macOS package is locally signed and has not been notarized by Apple.
+Download the macOS installer and SHA-256 checksum from [GitHub Releases](https://github.com/Eileenes/Soren/releases). Installers are release assets, not part of the Git source history. Local builds are stored in `release/`. To build your own, see [Run from source](#run-from-source). The current macOS package is locally signed and has not been notarized by Apple.
 
 ### 2. Connect a model
 
@@ -107,6 +107,8 @@ Sending Gmail messages, creating Notion pages, and calling MCP tools require con
 You can change Bot permissions or disconnect a service at any time. This is a developer preview, so you currently need to supply the relevant application credentials for external services. See the [connector setup guide](docs/CONNECTORS-DELIVERY.md) for details.
 
 ## Connect your phone to your Mac
+
+The desktop **Settings → Linked devices (设置 → 关联设备)** section now includes an iOS download entry. It shows a pending state until a TestFlight link is available. Once published, use the button or installation QR code to install, then scan the separate pairing code. See [iOS distribution](docs/IOS-DISTRIBUTION.md) for publisher setup.
 
 Your phone and Mac access the same local workspace, while the Mac continues to execute tasks. Pairing uses **a QR code and approval on the Mac**; it does not require a shared GitHub account.
 
@@ -194,7 +196,7 @@ Build output:
 ```text
 frontend/src-tauri/target/release/bundle/
 ├── macos/Soren.app
-└── dmg/Soren_0.4.1_aarch64.dmg
+└── dmg/Soren_0.4.2_aarch64.dmg
 ```
 
 The build command automatically compiles the backend and packages the app. See the [macOS build guide](docs/MACOS-BUILD.md) for signing and installation details.
@@ -224,7 +226,7 @@ npm --prefix frontend run build
 cargo test --locked --manifest-path frontend/src-tauri/Cargo.toml
 ```
 
-See the [0.4.1 review notes](docs/REVIEW-041.md) for validation results, fixes, and remaining dependency warnings.
+See the [0.4.1 review notes](docs/REVIEW-041.md) for the 0.4.1 baseline validation results, fixes, and remaining dependency warnings.
 
 ## Project structure
 
@@ -273,6 +275,7 @@ Planned work includes official mobile distribution, more complete mobile interac
 
 The detailed guides linked below are currently in Chinese.
 
+- [Release workflow](docs/RELEASING.md) / [iOS distribution](docs/IOS-DISTRIBUTION.md): GitHub Releases, TestFlight, and desktop download configuration.
 - [User guide](docs/USER-GUIDE.md): model setup, Bots, tasks, and app connections.
 - [Connector guide](docs/CONNECTORS-DELIVERY.md): current Gmail, Notion, and MCP support.
 - [Mobile integration](docs/MOBILE-040-DELIVERY.md) / [Deployment guide](deploy/README.md): pairing, permissions, and service deployment.

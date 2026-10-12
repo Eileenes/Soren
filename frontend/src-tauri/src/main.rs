@@ -48,12 +48,15 @@ fn open_external(url: String) -> Result<(), String> {
                     | "accounts.google.com"
                     | "developers.notion.com"
                     | "console.cloud.google.com"
+                    | "testflight.apple.com"
+                    | "apps.apple.com"
             )
         )
         || !parsed.username().is_empty()
         || parsed.password().is_some()
+        || parsed.port().is_some()
     {
-        return Err("不支持的授权地址".into());
+        return Err("不支持的外部地址".into());
     }
     std::process::Command::new("open")
         .arg(url)

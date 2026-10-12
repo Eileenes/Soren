@@ -12,7 +12,7 @@
     <a href="#从源码运行">开发与构建</a> ·
     <a href="#文档导航">文档</a>
   </p>
-  <sub>开发预览版 0.4.1 · macOS Apple Silicon · iOS 开发验证中</sub>
+  <sub>开发预览版 0.4.2 · macOS Apple Silicon · iOS 开发验证中</sub>
 </div>
 
 ---
@@ -42,9 +42,9 @@ Soren 是一个以 Mac 为执行中心的个人 AI 助手。你可以和它对�
 
 ### 1. 安装并打开
 
-拿到 `Soren-0.4.1-macOS-arm64.dmg` 后，打开安装包，将 **Soren** 拖入「应用程序」，再启动应用。首次使用引导可以跳过，也可从应用顶部重新打开。
+拿到 `Soren-0.4.2-macOS-arm64.dmg` 后，打开安装包，将 **Soren** 拖入「应用程序」，再启动应用。首次使用引导可以跳过，也可从应用顶部重新打开。
 
-当前仓库只保存源码，不包含安装包。已有安装包在开发机的 `release/` 目录；自行构建请看[从源码运行](#从源码运行)。当前 macOS 包采用本地签名，尚未经过 Apple 公证。
+从 [GitHub Releases](https://github.com/Eileenes/Soren/releases) 下载 macOS 安装包及 SHA-256 校验文件。Git 源码不包含安装包；本机构建产物在 `release/` 目录，自行构建请看[从源码运行](#从源码运行)。当前 macOS 包采用本地签名，尚未经过 Apple 公证。
 
 ### 2. 连接一个模型
 
@@ -105,6 +105,8 @@ Gmail 发送、Notion 创建页面及 MCP 调用需要确认。遇到待确认�
 连接可随时调整 Bot 权限或断开。当前为开发预览版，外部服务仍需自行准备相应应用凭据；详细步骤见[连接器配置说明](docs/CONNECTORS-DELIVERY.md)。
 
 ## 手机如何关联 Mac
+
+桌面「设置 → 关联设备」提供 iOS 下载入口。当前 TestFlight 链接尚未就绪，入口显示待开放；发布后可通过按钮或安装二维码下载，再扫描配对码关联。发布方配置步骤见 [iOS 分发说明](docs/IOS-DISTRIBUTION.md)。
 
 手机和 Mac 访问同一个本地空间，任务仍由 Mac 执行。关联依靠**扫码与 Mac 确认**，不要求登录同一 GitHub 账号。
 
@@ -192,7 +194,7 @@ npm run build:mac
 ```text
 frontend/src-tauri/target/release/bundle/
 ├── macos/Soren.app
-└── dmg/Soren_0.4.1_aarch64.dmg
+└── dmg/Soren_0.4.2_aarch64.dmg
 ```
 
 构建命令会自动编译后端并打包。签名和安装说明见 [macOS 构建指南](docs/MACOS-BUILD.md)。
@@ -222,7 +224,7 @@ npm --prefix frontend run build
 cargo test --locked --manifest-path frontend/src-tauri/Cargo.toml
 ```
 
-当前版本的验证结果、已修复问题与剩余依赖告警见 [0.4.1 审查记录](docs/REVIEW-041.md)。
+0.4.1 基线的验证结果、已修复问题与剩余依赖告警见 [0.4.1 审查记录](docs/REVIEW-041.md)。
 
 ## 项目结构
 
@@ -268,6 +270,8 @@ Soren/
 后续方向包括正式手机分发、更完整的移动交互、更多连接器，以及图片/视频生成和定时任务。Canva、日历和独立媒体生成流程目前尚未内置。
 
 ## 文档导航
+
+- [版本发布](docs/RELEASING.md) / [iOS 分发](docs/IOS-DISTRIBUTION.md)：GitHub Release、TestFlight 和桌面下载入口。
 
 - [日常操作指南](docs/USER-GUIDE.md)：模型配置、Bot、任务和应用连接。
 - [连接器说明](docs/CONNECTORS-DELIVERY.md)：Gmail、Notion 与 MCP 的接入范围。

@@ -1,6 +1,6 @@
 {
   "name": "soren",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Soren — a personal AI companion with local memory",
   "type": "module",
   "scripts": {
@@ -11,7 +11,9 @@
     "build:mac": "bash scripts/build.sh --bundles app,dmg",
     "build:backend": "bash scripts/build-backend.sh",
     "test": "npm --prefix frontend test",
-    "preview": "npm --prefix frontend run preview"
+    "preview": "npm --prefix frontend run preview",
+    "release:check": "node scripts/check-release.mjs",
+    "release:package": "bash scripts/package-release.sh"
   },
   "keywords": [
     "design-system",
