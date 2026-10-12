@@ -99,3 +99,27 @@ func mustFile(t *testing.T, result, want string) string {
 	}
 	return out.Path
 }
+
+func newTLSStorage(t *testing.T, body string) *httptest.Server {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Error("API key forwarded to storage")
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func newTLSRedirect(t *testing.T, to string) *httptest.Server {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer key-1" {
+			w.WriteHeader(401)
+			return
+		}
+		http.Redirect(w, r, to, http.StatusFound)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}

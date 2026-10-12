@@ -169,7 +169,10 @@ func (s *Service) saveDownload(ctx context.Context, k *kindSpec, endpoint, key, 
 		return "", e
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
-	res, e := s.HTTP.Do(req)
+	// Never let the client follow redirects with the API key attached.
+	client := *s.HTTP
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	res, e := client.Do(req)
 	if e != nil {
 		return "", e
 	}
