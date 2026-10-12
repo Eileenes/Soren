@@ -1,0 +1,1 @@
+2e06def2d2f5f53f0dd4d68d85d2a37ee8abb08ccdfdffd0f3e570eb3728aad9  Soren-0.3.0-macOS-arm64.dmg

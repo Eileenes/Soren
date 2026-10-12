@@ -1,0 +1,11 @@
+{
+  "name": "soren-mobile",
+  "version": "0.4.1",
+  "private": true,
+  "scripts": {
+    "tauri": "../frontend/node_modules/.bin/tauri",
+    "ios:init": "bash ../scripts/init-mobile-ios.sh",
+    "ios:dev": "../frontend/node_modules/.bin/tauri ios dev",
+    "ios:build": "../frontend/node_modules/.bin/tauri ios build"
+  }
+}

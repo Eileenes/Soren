@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>Soren — mint wink</title>
+  <defs>
+    <linearGradient id="face" x1="180" y1="70" x2="780" y2="1010" gradientUnits="userSpaceOnUse"><stop stop-color="#C1F1D8"/><stop offset=".5" stop-color="#81D7BE"/><stop offset="1" stop-color="#D9E8AC"/></linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(240 170) rotate(50) scale(790)" gradientUnits="userSpaceOnUse"><stop stop-color="#F3FFE0" stop-opacity=".42"/><stop offset="1" stop-color="#F3FFE0" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="226" fill="url(#face)"/>
+  <rect width="1024" height="1024" rx="226" fill="url(#light)"/>
+  <circle cx="337" cy="487" r="82" fill="#174C42"/>
+  <circle cx="362" cy="459" r="22" fill="#EAFFF1"/>
+  <path d="M596 497C630 449 688 439 736 482" stroke="#174C42" stroke-width="53" stroke-linecap="round"/>
+  <path d="M392 671C445 757 565 762 632 661" stroke="#174C42" stroke-width="43" stroke-linecap="round"/>
+  <path d="M704 195L719 235L758 250L719 265L704 305L689 265L650 250L689 235Z" fill="#F5FFE8"/>
+</svg>

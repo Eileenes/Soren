@@ -1,0 +1,12 @@
+**
+!backend/
+!backend/go.mod
+!backend/go.sum
+!backend/cmd/
+!backend/cmd/**
+!backend/internal/
+!backend/internal/**
+**/*_test.go
+**/.env*
+**/*.db*
+**/*.log

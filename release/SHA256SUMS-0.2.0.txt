@@ -1,0 +1,1 @@
+95fa1d21f45276b17f1ad96c899e2c856415bc743d762184c2fa58d9ad6b13a1  release/Soren-0.2.0-macOS-arm64.dmg

@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>NSCameraUsageDescription</key><string>扫描 Mac 上的 Soren 二维码以关联设备。</string><key>NSLocalNetworkUsageDescription</key><string>开发测试时连接本机 Soren 服务。</string></dict></plist>

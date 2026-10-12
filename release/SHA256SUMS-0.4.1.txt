@@ -1,0 +1,1 @@
+1ec0558ffce977d920888211bad8fc6585601a4beb482163812382dcd9ec9794  release/Soren-0.4.1-macOS-arm64.dmg

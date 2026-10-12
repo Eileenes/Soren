@@ -1,0 +1,222 @@
+html,
+body,
+#root {
+  min-height: 100%;
+  height: auto;
+}
+body {
+  background: rgb(var(--soren-surface-1));
+  color: rgb(var(--soren-ink-1));
+}
+.mobile-shell {
+  max-width: 600px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 24px) 22px
+    calc(env(safe-area-inset-bottom) + 36px);
+  color: rgb(var(--soren-ink-1));
+  background: radial-gradient(ellipse at 80% 5%, #b9d5bd30, transparent 50%);
+}
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.mobile-pair {
+  max-width: 360px;
+  margin: 48px auto 0;
+  text-align: center;
+}
+.mobile-orb {
+  width: 154px;
+  height: 154px;
+  margin: 0 auto 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #c6e5d4 0%,
+    #d4e5c766 50%,
+    transparent 72%
+  );
+}
+.mobile-orb img {
+  width: 110px;
+  filter: drop-shadow(0 14px 22px #236e5020);
+}
+.mobile-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: #718576;
+}
+.mobile-pair h1 {
+  font-size: 38px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.04em;
+  margin-top: 14px;
+}
+.mobile-confirm {
+  border-radius: 24px;
+  padding: 26px;
+  margin-top: 30px;
+  background: #8cac8e12;
+  border: 1px solid #8cac8e30;
+}
+.mobile-confirm strong {
+  display: block;
+  font-size: 34px;
+  font-family: monospace;
+  letter-spacing: 0.2em;
+  margin: 16px 0;
+}
+.mobile-connection {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  margin: 28px 0 22px;
+  color: #7c8880;
+}
+.mobile-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a29c91;
+}
+.mobile-dot.online {
+  background: #68a383;
+  box-shadow: 0 0 0 4px #68a38315;
+}
+.mobile-bots {
+  display: flex;
+  overflow-x: auto;
+  gap: 12px;
+  padding: 2px 0 14px;
+}
+.mobile-bots button {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid transparent;
+  padding: 8px 12px 8px 8px;
+  border-radius: 16px;
+  font-size: 13px;
+  background: #8cac8e08;
+}
+.mobile-bots button.active {
+  background: #8cac8e1c;
+  border-color: #8cac8e60;
+}
+.mobile-bots img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.mobile-tabs {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0 20px;
+}
+.mobile-tabs button {
+  font-size: 14px;
+  padding-bottom: 8px;
+  opacity: 0.5;
+  border-bottom: 2px solid transparent;
+}
+.mobile-tabs button[aria-pressed="true"] {
+  opacity: 1;
+  border-color: #6c9980;
+}
+.mobile-composer {
+  border: 1px solid #8cac8e40;
+  border-radius: 22px;
+  background: #8cac8e08;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+.mobile-composer textarea {
+  width: 100%;
+  min-height: 88px;
+  background: transparent;
+  resize: vertical;
+  font-size: 15px;
+  outline: none;
+  line-height: 1.7;
+}
+.mobile-task {
+  border: 1px solid #8cac8e28;
+  border-radius: 20px;
+  padding: 18px;
+  background: #8cac8e06;
+}
+.mobile-task-title {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.mobile-task-title span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mobile-task-title small {
+  white-space: nowrap;
+  font-size: 10px;
+  opacity: 0.55;
+  padding-top: 3px;
+}
+.mobile-tool {
+  background: #8cac8e12;
+  border-radius: 12px;
+  padding: 12px;
+}
+.mobile-tool pre {
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 12px 0;
+  max-height: 260px;
+  overflow: auto;
+}
+.mobile-error {
+  margin: 20px 0;
+  padding: 14px 16px;
+  border: 1px solid #c06c5b35;
+  border-radius: 14px;
+  background: #c06c5b09;
+  color: #b15e51;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.dark .mobile-shell {
+  background: radial-gradient(ellipse at 80% 5%, #73988212, transparent 55%);
+}
+.dark body {
+  background: rgb(var(--soren-surface-1));
+  color: rgb(var(--soren-ink-1));
+}
+.dark .mobile-orb {
+  background: radial-gradient(circle, #538c682a, transparent 70%);
+}
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #72a38c;
+  outline-offset: 3px;
+}
+@media (max-width: 360px) {
+  .mobile-shell {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .mobile-pair h1 {
+    font-size: 32px;
+  }
+}

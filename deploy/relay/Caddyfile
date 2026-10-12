@@ -1,0 +1,22 @@
+{$SOREN_RELAY_DOMAIN} {
+  request_body {
+    max_size 2MB
+  }
+  reverse_proxy relay:8090 {
+    transport http {
+      response_header_timeout 85s
+    }
+  }
+}
+{$SOREN_MOBILE_DOMAIN} {
+  root * /srv/mobile
+  @root path /
+  rewrite @root /mobile.html
+  header {
+    Referrer-Policy "no-referrer"
+    X-Content-Type-Options "nosniff"
+    Cache-Control "no-store"
+    Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://{$SOREN_RELAY_DOMAIN}; frame-ancestors 'none'; base-uri 'none'"
+  }
+  file_server
+}

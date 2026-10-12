@@ -1,0 +1,25 @@
+import { chromium } from '../../frontend/node_modules/playwright/index.mjs';
+import assert from 'node:assert/strict';
+const api=process.env.SOREN_QA_API || 'http://127.0.0.1:8088';
+const root=new URL('../../',import.meta.url).pathname;
+const request=async(path,method='GET',body)=>{const r=await fetch(api+'/api'+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});if(!r.ok)throw new Error(`${path}: ${r.status} ${await r.text()}`);return r.status===204?null:r.json()};
+await request('/mobile/enabled','POST',{enabled:true});
+for(let i=0;i<40;i++){if((await request('/mobile')).online)break;await new Promise(r=>setTimeout(r,1000))}
+const qr=await request('/mobile/pairing','POST',{});
+const browser=await chromium.launch({channel:"chrome"});const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(qr.url);
+await page.getByRole('button',{name:'关联 Mac',exact:true}).click();
+await page.getByText('等待 Mac 允许关联').waitFor();
+let status;for(let i=0;i<30;i++){status=await request('/mobile');if(status.pending)break;await new Promise(r=>setTimeout(r,200))};assert(status.pending);await page.getByText(status.pending.code,{exact:true}).waitFor();
+await request('/mobile/decision','POST',{key:status.pending.device.key,code:status.pending.code,approve:true});
+await page.locator('.mobile-connection').filter({hasText:'Mac 已连接'}).waitFor({timeout:20000});
+await page.getByRole('textbox',{name:'交给 Bot 的任务'}).fill('整理一个三步早餐计划');await page.getByRole('button',{name:'交给 Soren',exact:true}).click();
+await page.getByRole('button',{name:/整理一个三步早餐计划/}).waitFor({timeout:20000});
+assert((await request('/runs')).some(r=>r.goal==='整理一个三步早餐计划'));
+await page.screenshot({path:root+'docs/previews/mobile-040-linked-light.png',fullPage:true});
+assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+await page.emulateMedia({colorScheme:'dark'});await page.screenshot({path:root+'docs/previews/mobile-040-linked-dark.png',fullPage:true});
+await request('/mobile/devices/'+status.pending.device.key,'DELETE');await page.getByRole('alert').filter({hasText:'设备未关联或已被撤销'}).waitFor({timeout:15000});
+const desktop=await browser.newPage({viewport:{width:1320,height:900}});await desktop.addInitScript(()=>localStorage.setItem('soren.getting-started.v1',JSON.stringify({dismissed:true,step:0})));await desktop.goto('http://localhost:1420');
+console.log(JSON.stringify({realEncryptedRoundTrip:true,taskVisibleOnMac:true,revocation:true,mobileOverflow:false,errors}));
+await browser.close();

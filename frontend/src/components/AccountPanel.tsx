@@ -1,0 +1,15 @@
+import { useEffect, useState } from 'react';
+import { Button, TextField } from './ui';
+import { connectionRequest as request, openExternal, type DeviceLogin, type Identity } from '../services/connections';
+import { describeError } from '../services/api';
+export function AccountPanel() {
+  const [identity, setIdentity] = useState<Identity | null>(null); const [clientId, setClientId] = useState('');
+  const [device, setDevice] = useState<DeviceLogin | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => { let active = true; request<{identity: Identity | null}>('GET', '/identity').then(r => { if (active) setIdentity(r.identity); }).catch(e => { if (active) setError(describeError(e)); }); return () => { active = false; }; }, []);
+  useEffect(() => { if (!device) return; let active = true; let timer: ReturnType<typeof setTimeout>; const poll = async () => { try { const r = await request<{identity: Identity | null}>('POST', `/identity/github/${device.id}/poll`); if (!active) return; if (r.identity) { setIdentity(r.identity); setDevice(null); return; } } catch (e) { if (active) { setError(describeError(e)); setDevice(null); } return; } if (active) timer = setTimeout(poll, Math.max(5, device.interval) * 1000); }; timer = setTimeout(poll, Math.max(5, device.interval) * 1000); return () => { active = false; clearTimeout(timer); }; }, [device]);
+  const start = async () => { setBusy(true); setError(''); try { const code = await request<DeviceLogin>('POST', '/identity/github', {clientId}); setDevice(code); await openExternal(code.url); } catch (e) { setError(describeError(e)); } finally { setBusy(false); } };
+  return <section className="settings-section rounded-2xl border border-line bg-surface-2 p-5 sm:p-7"><div className="mb-5 flex items-center justify-between"><h2 className="font-semibold text-ink-1">账号</h2><span className="text-xs text-ink-3">GitHub OAuth</span></div>
+    {identity ? <div><p className="text-sm font-medium text-ink-1">{identity.name || identity.login} <span className="ml-2 text-ink-3">@{identity.login}</span></p><p className="mt-2 text-xs text-ink-3">已绑定本地空间 · 手机联动待部署</p></div> : <div className="space-y-4"><p className="text-sm text-ink-2">本地功能无需登录。绑定 GitHub 后保留账号身份，跨设备服务待部署。</p><TextField label="GitHub OAuth Client ID" helper="在自己的 GitHub OAuth App 中开启 Device Flow；无需 Client Secret。" value={clientId} onChange={e => setClientId(e.target.value)} />{device ? <div className="rounded-xl bg-surface-3 p-4"><p className="text-xs text-ink-3">在 GitHub 输入验证码</p><p className="my-3 font-mono text-2xl tracking-widest text-ink-1">{device.userCode}</p><Button size="sm" variant="ghost" onClick={() => void openExternal(device.url).catch(e => setError(describeError(e)))}>打开 GitHub</Button><Button size="sm" variant="ghost" onClick={() => setDevice(null)}>取消</Button></div> : <Button disabled={!clientId.trim()} loading={busy} onClick={() => void start()}>使用 GitHub 登录</Button>}</div>}
+    {error && <p role="alert" className="bot-error mt-4">{error}</p>}
+  </section>;
+}

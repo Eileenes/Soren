@@ -1,0 +1,30 @@
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: deploy/relay/Dockerfile
+    environment:
+      RELAY_LISTEN: 0.0.0.0:8090
+      RELAY_ALLOWED_ORIGINS: https://${SOREN_MOBILE_DOMAIN:?Set SOREN_MOBILE_DOMAIN},tauri://localhost,http://tauri.localhost,https://tauri.localhost
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    cap_drop: ["ALL"]
+  edge:
+    image: caddy:2-alpine
+    environment:
+      SOREN_RELAY_DOMAIN: ${SOREN_RELAY_DOMAIN:?Set SOREN_RELAY_DOMAIN}
+      SOREN_MOBILE_DOMAIN: ${SOREN_MOBILE_DOMAIN:?Set SOREN_MOBILE_DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../frontend/dist:/srv/mobile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on: [relay]
+volumes:
+  caddy_data:
+  caddy_config:

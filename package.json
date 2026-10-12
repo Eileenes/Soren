@@ -1,0 +1,24 @@
+{
+  "name": "soren",
+  "version": "0.4.1",
+  "description": "Soren — a personal AI companion with local memory",
+  "type": "module",
+  "scripts": {
+    "dev": "bash scripts/start-frontend.sh",
+    "dev:web": "npm --prefix frontend run dev",
+    "dev:backend": "bash scripts/start-backend.sh",
+    "build": "bash scripts/build.sh",
+    "build:mac": "bash scripts/build.sh --bundles app,dmg",
+    "build:backend": "bash scripts/build-backend.sh",
+    "test": "npm --prefix frontend test",
+    "preview": "npm --prefix frontend run preview"
+  },
+  "keywords": [
+    "design-system",
+    "ui-components",
+    "tailwindcss",
+    "react",
+    "ai-assistant"
+  ],
+  "private": true
+}

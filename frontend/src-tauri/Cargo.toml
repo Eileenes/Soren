@@ -1,0 +1,18 @@
+[package]
+name = "soren"
+version = "0.4.1"
+description = "Soren — 有长期记忆的桌面 AI 助手"
+authors = ["Soren"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+# 注意：不要加 "shell-open" feature —— 那是 Tauri 1.x 的遗留，
+# 2.0 已把 shell 拆成独立插件，tauri crate 上不存在该 feature，写了会编译失败。
+# 后端进程由 std::process::Command 直接拉起，无需 shell 插件。
+tauri = { version = "2.0", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "json", "rustls"] }

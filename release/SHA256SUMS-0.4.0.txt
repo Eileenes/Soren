@@ -1,0 +1,2 @@
+b87ad3339a2c50e135780b58b5a487c90870d6e346fb882bb5a37b0dd6c8dc51  release/Soren-0.4.0-macOS-arm64.dmg
+a293c45a07105b60fc5d46ebc657035cd6df083362c4622daba7221a58b2771c  release/Soren-0.4.0-iOS-Simulator-arm64.zip
