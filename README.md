@@ -1,3 +1,5 @@
+<p align="center"><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
+
 <div align="center">
   <img src="assets/app-icon-1024.png" alt="Soren Logo" width="120" height="120" />
   <h1>Soren</h1>
