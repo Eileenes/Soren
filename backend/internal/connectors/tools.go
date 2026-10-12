@@ -75,6 +75,9 @@ func (s *Service) execute(ctx context.Context, b binding, bot, run string, raw [
 	if e != nil {
 		return "", errors.New("无法读取连接凭据，请重新连接")
 	}
+	if k, ok := kinds[b.Connection.Kind]; ok {
+		return s.executeKind(ctx, k, b.Action, credential.APIKey, args)
+	}
 	switch b.Connection.Kind {
 	case "gmail":
 		addr, e := mail.ParseAddress(args["to"])

@@ -103,8 +103,20 @@ func RegisterConnectors(g *gin.RouterGroup, s *connectors.Service, callbackURL s
 			row.Tools = list
 			row.Account = row.Endpoint
 		default:
-			fail(c, errors.New("连接类型无效"))
-			return
+			k, ok := connectors.KindSpec(input.Kind)
+			if !ok {
+				fail(c, errors.New("连接类型无效"))
+				return
+			}
+			if e := s.CheckKey(ctx, input.Kind, input.Token); e != nil {
+				fail(c, e)
+				return
+			}
+			if strings.TrimSpace(input.Name) == "" || input.Name == input.Kind {
+				row.Name = k.Name()
+			}
+			row.Account = "百智云 · " + k.Name()
+			row.Endpoint = ""
 		}
 		if e := s.Vault.Set(row.ID, connectors.Credential{APIKey: input.Token}); e != nil {
 			fail(c, errors.New("系统凭据库不可用，连接未保存"))
