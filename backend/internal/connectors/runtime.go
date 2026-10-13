@@ -28,8 +28,10 @@ type Service struct {
 	DataDir              string
 	Authorize            func(string) error
 	GoogleAPI, NotionAPI string
-	mu                   sync.Mutex
-	pending              map[string]*oauthAttempt
+	// APIBase overrides the default OpenAPI prefix per Baizhi connector kind (tests).
+	APIBase map[string]string
+	mu      sync.Mutex
+	pending map[string]*oauthAttempt
 }
 
 func New(db *gorm.DB, v Vault, dir string) (*Service, error) {
@@ -97,6 +99,8 @@ func (s *Service) catalog(bot string) (map[string]binding, error) {
 			add("search", "按标题搜索 Notion 中授权的页面", map[string]any{"query": str("标题关键词")}, false, "query")
 			add("read", "读取页面的第一层内容块，每次最多 100 条；有更多时返回游标。", map[string]any{"pageId": str("页面 ID"), "cursor": str("可选分页游标")}, false, "pageId")
 			add("create", "在指定父页面下新建页面", map[string]any{"parentId": str("父页面 ID"), "title": str("标题"), "content": str("纯文本正文")}, true, "parentId", "title", "content")
+		default:
+			s.addKindTools(c, add)
 		case "mcp":
 			for i, t := range c.Tools {
 				name := fmt.Sprintf("%st%d", prefix, i)

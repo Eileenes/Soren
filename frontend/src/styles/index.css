@@ -750,6 +750,7 @@ button:disabled { cursor: not-allowed; }
 @media (max-width:760px) { .bot-grid { grid-template-columns:1fr; } .bot-card-top img { width:64px; height:64px; } .avatar-picker { grid-template-columns:repeat(4,minmax(0,1fr)); } .bot-peer-list { grid-template-columns:1fr; } .bot-card,.shared-card,.task-composer { padding:18px; } .task-composer-footer { align-items:flex-end; } .run-summary { padding:15px; gap:10px; } .run-detail { padding-left:15px; padding-right:15px; } .sidebar-brand { padding-bottom:15px; } .history-heading { padding-top:18px; } .sidebar-nav-spacer { height:12px; } .app-sidebar { overflow-y:auto; } .conversation-history { min-height:60px; } }
 
 /* Connected tools share the quiet forest palette of the workspace. */
+.connector-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); }
 .connector-add { display:flex; align-items:center; gap:14px; text-align:left; border:1px solid rgb(var(--soren-line)); background:rgb(var(--soren-surface-2)); border-radius:18px; padding:22px 18px; transition:background .2s,transform .2s; }
 .connector-add:hover { transform:translateY(-2px); background:rgb(var(--soren-surface-3)); }
 .connector-add strong { display:block; font-size:15px; }
