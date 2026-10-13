@@ -6,6 +6,7 @@
 
 用法：python3 scripts/gen-icons.py assets/app-icon-1024.png frontend/src-tauri/icons
 SVG 输入额外需要 cairosvg；已提交的 1024px PNG 只需要 Pillow。
+macOS ICNS 在四周保留透明边距，使 Dock 中的视觉尺寸与系统应用一致。
 """
 import struct
 import sys
@@ -35,10 +36,14 @@ if src.width != src.height:
     raise SystemExit("图标源文件必须为正方形，避免缩放后变形。")
 
 
-def png_bytes(size: int) -> bytes:
-    """把源图缩放为指定尺寸并编码为 PNG 字节。"""
+def macos_png_bytes(size: int) -> bytes:
+    """在 1024px 画布上按 824px 主体比例生成 macOS 图标。"""
+    inset = round(size * 100 / 1024)
+    content_size = size - 2 * inset
+    icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    icon.alpha_composite(src.resize((content_size, content_size), Image.LANCZOS), (inset, inset))
     buf = BytesIO()
-    src.resize((size, size), Image.LANCZOS).save(buf, format="PNG")
+    icon.save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -61,7 +66,7 @@ def write_icns(path: Path) -> None:
     ]
     body = b""
     for tag, size in entries:
-        payload = png_bytes(size)
+        payload = macos_png_bytes(size)
         body += tag + struct.pack(">I", len(payload) + 8) + payload
     path.write_bytes(b"icns" + struct.pack(">I", len(body) + 8) + body)
 

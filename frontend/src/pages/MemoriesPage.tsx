@@ -267,7 +267,7 @@ export function MemoriesPage({
                 onClick={() => setType(filter.value)}
                 aria-pressed={active}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs',
+                  'control-button inline-flex items-center justify-center gap-2 border',
                   'transition-all duration-fast',
                   active
                     ? 'border-primary-start/50 bg-primary-start/15 font-medium text-primary-start'
@@ -317,7 +317,7 @@ export function MemoriesPage({
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <div className="memory-list">
             {items.map((memory) => (
               <MemoryCard
                 key={memory.id}

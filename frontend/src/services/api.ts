@@ -132,7 +132,7 @@ const http: AxiosInstance = axios.create({
 });
 
 http.interceptors.request.use((config) => {
-  config.headers.set?.('X-Bot-ID', getActiveBotID());
+  if (!config.headers.has('X-Bot-ID')) config.headers.set('X-Bot-ID', getActiveBotID());
   return config;
 }, undefined, { synchronous: true });
 
@@ -193,14 +193,14 @@ export const chatAPI = {
   },
 
   /** GET /api/conversations */
-  async getConversations(): Promise<Conversation[]> {
-    const { data } = await http.get<Conversation[]>('/api/conversations');
+  async getConversations(botId?: string): Promise<Conversation[]> {
+    const { data } = await http.get<Conversation[]>('/api/conversations', botId ? { headers: { 'X-Bot-ID': botId } } : undefined);
     return data;
   },
 
   /** GET /api/conversations/:id */
-  async getConversation(id: string, signal?: AbortSignal): Promise<Conversation> {
-    const { data } = await http.get<Conversation>(`/api/conversations/${id}`, { signal });
+  async getConversation(id: string, signal?: AbortSignal, botId?: string): Promise<Conversation> {
+    const { data } = await http.get<Conversation>(`/api/conversations/${id}`, { signal, ...(botId ? { headers: { 'X-Bot-ID': botId } } : {}) });
     return data;
   },
 

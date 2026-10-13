@@ -13,7 +13,7 @@
     <a href="#从源码运行">开发与构建</a> ·
     <a href="#文档导航">文档</a>
   </p>
-  <sub>开发预览版 0.4.2 · macOS Apple Silicon · iOS 开发验证中</sub>
+  <sub>开发预览版 0.4.3 · macOS Apple Silicon · iOS 开发验证中</sub>
 </div>
 
 ---
@@ -43,7 +43,7 @@ Soren 是一个以 Mac 为执行中心的个人 AI 助手。你可以和它对�
 
 ### 1. 安装并打开
 
-拿到 `Soren-0.4.2-macOS-arm64.dmg` 后，打开安装包，将 **Soren** 拖入「应用程序」，再启动应用。首次使用引导可以跳过，也可从应用顶部重新打开。
+拿到 `Soren-0.4.3-macOS-arm64.dmg` 后，打开安装包，将 **Soren** 拖入「应用程序」，再启动应用。首次使用引导可以跳过，也可从应用顶部重新打开。
 
 从 [GitHub Releases](https://github.com/Eileenes/Soren/releases) 下载 macOS 安装包及 SHA-256 校验文件。Git 源码不包含安装包；本机构建产物在 `release/` 目录，自行构建请看[从源码运行](#从源码运行)。当前 macOS 包采用本地签名，尚未经过 Apple 公证。
 
@@ -195,7 +195,7 @@ npm run build:mac
 ```text
 frontend/src-tauri/target/release/bundle/
 ├── macos/Soren.app
-└── dmg/Soren_0.4.2_aarch64.dmg
+└── dmg/Soren_0.4.3_aarch64.dmg
 ```
 
 构建命令会自动编译后端并打包。签名和安装说明见 [macOS 构建指南](docs/MACOS-BUILD.md)。

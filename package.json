@@ -1,6 +1,6 @@
 {
   "name": "soren",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Soren — a personal AI companion with local memory",
   "type": "module",
   "scripts": {

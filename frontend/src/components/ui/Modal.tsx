@@ -13,6 +13,7 @@ import { IconAlert, IconClose } from '../icons';
 
 export interface ModalProps {
   open: boolean;
+  compact?: boolean;
   onClose: () => void;
   title?: ReactNode;
   description?: ReactNode;
@@ -34,6 +35,7 @@ const MODAL_WIDTH: Record<NonNullable<ModalProps['size']>, string> = {
 /** 通用模态框 */
 export function Modal({
   open,
+  compact = false,
   onClose,
   title,
   description,
@@ -125,12 +127,13 @@ export function Modal({
           'relative w-full glass-panel-strong rounded-xl shadow-xl animate-scale',
           'ring-highlight flex flex-col max-h-[90dvh] overflow-hidden',
           MODAL_WIDTH[size],
+          compact && 'search-palette',
         )}
       >
         {/* 顶部渐变高光线，呼应品牌 */}
         <div className="h-px shrink-0 w-full bg-gradient-to-r from-transparent via-primary-start/70 to-transparent" />
 
-        {(title || description) && (
+        {!compact && (title || description) && (
           <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-5 pb-1">
             <div className="min-w-0">
               {title && (
@@ -146,7 +149,7 @@ export function Modal({
           </div>
         )}
 
-        {children && <div className="min-h-0 overflow-y-auto px-6 py-4">{children}</div>}
+        {children && <div className={cn("min-h-0 overflow-y-auto", compact ? "p-2" : "px-6 py-4")}>{children}</div>}
 
         {footer && (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line-subtle bg-surface-3/40 px-6 py-4">

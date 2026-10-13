@@ -19,7 +19,7 @@ export const agentsAPI = {
  notes: () => request<SharedNote[]>('GET', '/shared-notes'),
  saveNote: (note: SharedNote) => request<SharedNote>(note.id ? 'PUT' : 'POST', note.id ? `/shared-notes/${note.id}` : '/shared-notes', note),
  deleteNote: (id: string) => request<void>('DELETE', `/shared-notes/${id}`),
- runs: () => request<Run[]>('GET', '/runs'),
+ runs: (botId = getActiveBotID()) => request<Run[]>('GET', '/runs', undefined, botId),
  start: (goal: string, participants: string[], requestId: string) => request<Run>('POST', '/runs', { goal, participants, requestId }),
  cancel: (id: string) => request<void>('POST', `/runs/${id}/cancel`),
  resume: (id: string) => request<void>('POST', `/runs/${id}/resume`),

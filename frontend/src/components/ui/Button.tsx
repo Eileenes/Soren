@@ -8,7 +8,7 @@ import { cn } from '../../utils/format';
 /** 按钮视觉变体 */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
-/** 按钮尺寸 */
+/** 兼容已有调用；所有尺寸统一使用界面的标准操作尺寸。 */
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -32,10 +32,9 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {
-  // 高度对齐设计文档：小 32 / 标准 40 / 大 44
-  sm: 'h-8 px-3 text-xs',
-  md: 'h-10 px-4 text-sm',
-  lg: 'h-11 px-5 text-base',
+  sm: 'control-button',
+  md: 'control-button',
+  lg: 'control-button',
 };
 
 /** 通用按钮 */
@@ -65,7 +64,7 @@ export function Button({
       )}
       {...rest}
     >
-      {loading ? <Spinner size={size === 'sm' ? 12 : 14} /> : leadingIcon}
+      {loading ? <Spinner size={16} /> : leadingIcon}
       {children}
       {!loading && trailingIcon}
     </button>
@@ -82,9 +81,9 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 const ICON_BOX_CLASS: Record<ButtonSize, string> = {
-  sm: 'h-7 w-7',
-  md: 'h-8 w-8',
-  lg: 'h-10 w-10',
+  sm: 'control-icon',
+  md: 'control-icon',
+  lg: 'control-icon',
 };
 
 /**

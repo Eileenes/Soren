@@ -214,7 +214,7 @@ export function PasswordField({
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? '隐藏密钥' : '显示密钥'}
           title={visible ? '隐藏密钥' : '显示密钥'}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-ink-3 transition-colors duration-fast hover:text-ink-1"
+          className="control-icon absolute right-1 top-1/2 -translate-y-1/2 text-ink-3 transition-colors duration-fast hover:text-ink-1"
         >
           {visible ? '隐藏' : '显示'}
         </button>

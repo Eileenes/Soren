@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryCard } from '../components/memories/MemoryCard';
 import {
@@ -43,24 +43,24 @@ function makeMemory(overrides: Partial<MemoryEntry> = {}): MemoryEntry {
 }
 
 describe('MemoryCard', () => {
-  it('渲染类型、正文、标签与重要度', () => {
+  it('列表保留摘要和必要信息，点击后查看完整内容', async () => {
+    const user = userEvent.setup();
     render(<MemoryCard memory={makeMemory()} onDelete={vi.fn()} />);
-
-    // 类型标签（contentType = preference → 偏好）
     expect(screen.getByText('偏好')).toBeInTheDocument();
-    // 摘要（heading 级别）与正文
-    expect(screen.getByRole('heading', { name: '咖啡' })).toBeInTheDocument();
-    expect(screen.getByText('咖啡: 喜欢拿铁，不喜欢美式')).toBeInTheDocument();
-    // 标签（"咖啡" 同时是摘要和标签，这里按标签容器内的文本断言）
-    expect(screen.getAllByText('咖啡').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('饮品偏好')).toBeInTheDocument();
-    // 重要度：95 分 → 极高
-    expect(screen.getByText('95')).toBeInTheDocument();
-    expect(screen.getByText('极高')).toBeInTheDocument();
-    // 访问次数
-    expect(screen.getByText('访问 3 次')).toBeInTheDocument();
-    // 明确陈述标记
-    expect(screen.getByText('明确陈述')).toBeInTheDocument();
+    expect(screen.getByText('咖啡')).toBeInTheDocument();
+    expect(screen.queryByText('咖啡: 喜欢拿铁，不喜欢美式')).not.toBeInTheDocument();
+    expect(screen.queryByText('饮品偏好')).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '查看记忆详情：咖啡' }));
+    const detail = within(screen.getByRole('dialog', { name: '记忆详情' }));
+    expect(detail.getByText('咖啡: 喜欢拿铁，不喜欢美式')).toBeInTheDocument();
+    expect(detail.getByText('饮品偏好')).toBeInTheDocument();
+    expect(detail.getByText('95/100 · 极高')).toBeInTheDocument();
+    expect(detail.getByText('访问 3 次')).toBeInTheDocument();
+    expect(detail.getByText('明确陈述')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看记忆详情：咖啡' })).toHaveFocus();
   });
 
   it('四种记忆类型都能正确显示中文标签', () => {
@@ -80,8 +80,9 @@ describe('MemoryCard', () => {
     }
   });
 
-  it('重要度进度条带有无障碍属性', () => {
+  it('详情中的重要度进度条带有无障碍属性', async () => {
     render(<MemoryCard memory={makeMemory({ importanceScore: 42 })} onDelete={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: '查看记忆详情：咖啡' }));
 
     const bar = screen.getByRole('progressbar', { name: /重要度 42/ });
     expect(bar).toHaveAttribute('aria-valuenow', '42');
@@ -99,6 +100,7 @@ describe('MemoryCard', () => {
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledWith(memory);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('删除中时按钮被禁用，避免重复提交', () => {
@@ -119,6 +121,29 @@ describe('MemoryCard', () => {
     expect(copyButton).toBeInTheDocument();
     // 点击不应抛错（jsdom 下 execCommand 未实现，函数内部已兜底）
     await user.click(copyButton);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('编辑图标直接打开完整内容编辑器，不触发详情', async () => {
+    const user = userEvent.setup();
+    render(<MemoryCard memory={makeMemory()} onDelete={vi.fn()} onEdited={vi.fn()} />);
+    const edit = screen.getByRole('button', { name: '编辑记忆' });
+    expect(edit.textContent).toBe('');
+    await user.click(edit);
+    expect(screen.getByRole('dialog', { name: '编辑记忆' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '内容' })).toHaveValue('咖啡: 喜欢拿铁，不喜欢美式');
+    expect(screen.queryByRole('dialog', { name: '记忆详情' })).not.toBeInTheDocument();
+  });
+
+  it('没有摘要时使用正文缩略，键盘仍能打开完整详情', async () => {
+    const user = userEvent.setup();
+    const content = '这是一条很长的记忆。'.repeat(30);
+    render(<MemoryCard memory={makeMemory({ summary: '', content })} onDelete={vi.fn()} />);
+    const open = screen.getByRole('button', { name: /^查看记忆详情/ });
+    expect(open.textContent).not.toContain(content);
+    open.focus();
+    await user.keyboard('{Enter}');
+    expect(within(screen.getByRole('dialog', { name: '记忆详情' })).getByText(content)).toBeInTheDocument();
   });
 });
 

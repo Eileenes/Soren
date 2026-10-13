@@ -13,7 +13,7 @@
     <a href="#run-from-source">Develop and build</a> ·
     <a href="#documentation">Documentation</a>
   </p>
-  <sub>Developer Preview 0.4.2 · macOS Apple Silicon · iOS under development and validation</sub>
+  <sub>Developer Preview 0.4.3 · macOS Apple Silicon · iOS under development and validation</sub>
 </div>
 
 ---
@@ -45,7 +45,7 @@ The current app interface uses Chinese labels. This guide includes the original 
 
 ### 1. Install and open
 
-Open `Soren-0.4.2-macOS-arm64.dmg`, drag **Soren** into Applications, and launch it. You can skip the first-use setup guide and reopen it from the top of the app later.
+Open `Soren-0.4.3-macOS-arm64.dmg`, drag **Soren** into Applications, and launch it. You can skip the first-use setup guide and reopen it from the top of the app later.
 
 Download the macOS installer and SHA-256 checksum from [GitHub Releases](https://github.com/Eileenes/Soren/releases). Installers are release assets, not part of the Git source history. Local builds are stored in `release/`. To build your own, see [Run from source](#run-from-source). The current macOS package is locally signed and has not been notarized by Apple.
 
@@ -197,7 +197,7 @@ Build output:
 ```text
 frontend/src-tauri/target/release/bundle/
 ├── macos/Soren.app
-└── dmg/Soren_0.4.2_aarch64.dmg
+└── dmg/Soren_0.4.3_aarch64.dmg
 ```
 
 The build command automatically compiles the backend and packages the app. See the [macOS build guide](docs/MACOS-BUILD.md) for signing and installation details.
