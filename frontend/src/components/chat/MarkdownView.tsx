@@ -63,7 +63,7 @@ export function CodeBlock({ code, language, className }: CodeBlockProps) {
           onClick={handleCopy}
           aria-label={copied ? '已复制代码' : '复制代码'}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs',
+            'control-button inline-flex items-center justify-center gap-2',
             'text-ink-3 transition-all duration-fast',
             'hover:bg-surface-4 hover:text-ink-1',
             'opacity-0 group-hover/code:opacity-100 focus-visible:opacity-100',

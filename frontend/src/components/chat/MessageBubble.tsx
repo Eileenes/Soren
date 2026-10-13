@@ -47,7 +47,7 @@ function ActionButton({
         disabled={disabled}
         aria-label={label}
         className={cn(
-          'inline-flex h-7 w-7 items-center justify-center rounded-sm',
+          'control-icon inline-flex items-center justify-center',
           'text-ink-3 transition-all duration-fast',
           'hover:bg-surface-4 hover:text-ink-1',
           'disabled:opacity-40 disabled:cursor-not-allowed',

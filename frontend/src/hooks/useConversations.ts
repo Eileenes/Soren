@@ -23,7 +23,7 @@ export interface UseConversationsResult {
 
 export function useConversations(): UseConversationsResult {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
 

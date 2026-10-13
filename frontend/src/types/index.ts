@@ -297,7 +297,7 @@ export interface AppSettings {
 // ────────────────────────────────────────────────────────────
 
 /** 顶层视图标识（不引入 react-router，用 state 切换） */
-export type ViewId = 'chat' | 'memories' | 'channels' | 'settings' | 'bots' | 'tasks' | 'shared';
+export type ViewId = 'chat' | 'memories' | 'channels' | 'settings' | 'bots' | 'tasks' | 'shared' | 'history';
 
 // ────────────────────────────────────────────────────────────
 // 统一错误

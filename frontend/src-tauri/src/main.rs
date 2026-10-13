@@ -50,6 +50,11 @@ fn open_external(url: String) -> Result<(), String> {
                     | "console.cloud.google.com"
                     | "testflight.apple.com"
                     | "apps.apple.com"
+                    | "ai-sound-lab.app.baizhi.cloud"
+                    | "image-generate.app.baizhi.cloud"
+                    | "capybrowser.app.baizhi.cloud"
+                    | "design-prompt.app.baizhi.cloud"
+                    | "agent-toolkit.app.baizhi.cloud"
             )
         )
         || !parsed.username().is_empty()

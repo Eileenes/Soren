@@ -2,18 +2,22 @@
  * Soren 应用根组件
  *
  * 职责：
- * 1. 提供通知上下文与主题（深色为默认）
- * 2. 用 state 做视图切换（聊天 / 记忆 / 渠道 / 设置），不引入 react-router
- * 3. 组装侧边栏 + 顶部栏 + 当前页面
+ * 1. 提供通知上下文与主题
+ * 2. 头像侧栏切换 Bot，其他工具集中在设置内导航
+ * 3. 组装侧边栏、顶部栏与当前页面
  *
  * 数据流：各页面的数据由对应的 Hook 在 App 层统一持有，
- * 这样侧边栏徽标（记忆条数、运行中渠道数）能与其他页面保持同步，
- * 不会出现"切回列表还是旧数据"的问题。
+ * Bot 运行动效与任务页共享状态，对话和记忆也随页面切换保留。
  */
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { GettingStarted, useGettingStarted } from './components/GettingStarted';
-import { Button } from './components/ui';
+import { SettingsNav } from './components/layout/SettingsNav';
+import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
+import { BotEditor, blankBot } from './components/BotEditor';
+import { useBotInbox, type BotInbox } from './hooks/useBotInbox';
+import { useBotRuns } from './hooks/useBotRuns';
+import { SearchPalette } from './components/SearchPalette';
 import { Sidebar } from './components/layout/Sidebar';
 import { TitleBar } from './components/layout/TitleBar';
 import { ToastProvider, useToast } from './hooks/useToast';
@@ -42,41 +46,31 @@ const VIEW_TITLES: Record<ViewId, string> = {
   chat: '对话',
   memories: '我的记忆',
   channels: '应用连接',
-  settings: '设置',
+  settings: '通用设置', history: '对话记录',
 };
 
-/** 视图副标题（顶部栏展示） */
-const VIEW_SUBTITLES: Record<ViewId, string> = {
-  bots: '', tasks: '', shared: '',
-  chat: '与 Soren 对话',
-  memories: '查看与管理 AI 记住的内容',
-  channels: '飞书 / 钉钉机器人接入',
-  settings: '模型与界面配置',
-};
-
-function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError }: { bots: Bot[]; activeBot: Bot; onSelectBot: (id: string) => void; onReloadBots: () => Promise<void>; botError: string | null }) {
+function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError, inbox, onReloadInbox, initialConversation, onBotCreated }: { bots: Bot[]; activeBot: Bot; onSelectBot: (id: string, conversationId?: string) => void; onReloadBots: () => Promise<void>; botError: string | null; inbox: Record<string, BotInbox>; onReloadInbox: () => Promise<void>; initialConversation: string | null; onBotCreated: (bot: Bot) => void }) {
   const toast = useToast();
   const { settings, setLLM, setGeneral } = useSettings();
-  const { theme, toggleTheme } = useTheme();
+  useTheme();
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const closeSidebar = useCallback(() => setMobileOpen(false), []);
+  const [newBot, setNewBot] = useState<Bot | null>(null);
+  const restoredConversation = useRef(false);
   const [view, setView] = useState<ViewId>('chat');
   const guide = useGettingStarted();
   const [exampleTask, setExampleTask] = useState(false);
   const navigateGuide = (next: ViewId, example = false) => { setExampleTask(example); setView(next); };
-  const [mobileOpen, setMobileOpen] = useState(false);
   const isDesktop = '__TAURI_INTERNALS__' in window;
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileOpen(false); };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [mobileOpen]);
 
   // ── 数据源 ────────────────────────────────────────────
   const health = useHealth();
   const conversations = useConversations();
   const memories = useMemories();
   const channels = useChannels();
+  const runs = useBotRuns(bots, health.state === 'online');
 
   /** 新建对话后由 useChat 回调写入列表标题 */
   const handleConversationCreated = useCallback(
@@ -94,27 +88,21 @@ function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError }: { 
   );
 
   const chat = useChat({ onConversationCreated: handleConversationCreated });
+  useEffect(() => {
+    if (restoredConversation.current || conversations.loading || conversations.error) return;
+    restoredConversation.current = true;
+    const id = initialConversation || conversations.conversations[0]?.id;
+    if (id) void chat.loadConversation(id);
+  }, [initialConversation, conversations.loading, conversations.error, conversations.conversations, chat.loadConversation]);
 
-  /** 记忆首次加载完成后刷新侧栏徽标 */
+
+  /** 在设置导航中展示记忆数量 */
   const memoryCount = settings.general.showMemoryBadge
     ? memories.stats?.total ?? undefined
     : undefined;
 
-  const activeChannelCount = useMemo(
-    () => channels.channels.filter((item) => item.running).length,
-    [channels.channels],
-  );
-
   // ── 全局快捷键 ────────────────────────────────────────
-  /** Cmd/Ctrl+N：新建对话 */
-  useHotkey(
-    'n',
-    useCallback(() => {
-      chat.reset();
-      setView('chat');
-    }, [chat]),
-    { meta: true },
-  );
+  useHotkey('k', useCallback(() => { setMobileOpen(false); setSearchOpen(true); }, []), { meta: true });
 
   /** Cmd/Ctrl+,：打开设置 */
   useHotkey(
@@ -168,42 +156,19 @@ function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError }: { 
     if (previousLoading.current && !chat.loading && !chat.error) {
       void conversations.reload();
       void memories.reload();
+      void onReloadInbox();
     }
     previousLoading.current = chat.loading;
-  }, [chat.loading, chat.error, conversations.reload, memories.reload]);
+  }, [chat.loading, chat.error, conversations.reload, memories.reload, onReloadInbox]);
 
   // ── 交互处理 ──────────────────────────────────────────
-  const handleNewConversation = useCallback(() => {
-    chat.reset();
-    setView('chat');
-  }, [chat]);
-
   const handleSelectConversation = useCallback(
     (id: string) => {
+      restoredConversation.current = true;
       setView('chat');
       void chat.loadConversation(id);
     },
     [chat],
-  );
-
-  const handleDeleteConversation = useCallback(
-    async (id: string) => {
-      try {
-        await conversations.remove(id);
-        // 删除的是当前会话时，清空聊天区
-        if (chat.conversationId === id) {
-          chat.reset();
-        }
-        toast.success('对话已删除');
-      } catch (err) {
-        toast.error(
-          '删除失败',
-          err instanceof Error ? err.message : '请稍后重试',
-        );
-        throw err;
-      }
-    },
-    [conversations, chat, toast],
   );
 
   /** 清除失败态提示 */
@@ -219,34 +184,35 @@ function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError }: { 
     <div className={'app-shell ' + (isDesktop ? 'desktop-runtime' : '')}>
       {/* ── 侧边栏 ──────────────────────────────────────── */}
       <Sidebar
-        view={view}
         bots={bots}
         activeBot={activeBot}
-        onSelectBot={onSelectBot}
-        onNavigate={setView}
-        conversations={conversations.conversations}
-        currentConversationId={chat.conversationId}
-        onSelectConversation={handleSelectConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onNewConversation={handleNewConversation}
-        memoryCount={memoryCount}
-        activeChannelCount={activeChannelCount}
-        loading={conversations.loading}
+        onSelectBot={id => { if (id !== activeBot.id) onSelectBot(id); else if (!chat.loading && inbox[id]?.latestId && chat.conversationId !== inbox[id].latestId) handleSelectConversation(inbox[id].latestId!); setView('chat'); }}
+        onSearch={() => setSearchOpen(true)}
+        onCreateBot={() => setNewBot(blankBot())}
+        inbox={inbox}
+        error={botError}
+        onRetry={() => { void onReloadBots(); void onReloadInbox(); }}
         mobileOpen={mobileOpen}
-        onClose={() => setMobileOpen(false)}
+        onClose={closeSidebar}
+        settingsOpen={view !== 'chat'}
+        onOpenSettings={() => setView('settings')}
+        activity={chat.loading ? { ...runs.activity, [activeBot.id]: runs.activity[activeBot.id] === 'waiting_approval' ? 'waiting_approval' : 'running' } : runs.activity}
       />
+
+      {searchOpen && <SearchPalette bots={bots} inbox={inbox} onClose={() => setSearchOpen(false)} onSelect={(botId, id) => { if (botId !== activeBot.id) onSelectBot(botId, id); else { const target = id || inbox[botId]?.latestId; if (target && target !== chat.conversationId) handleSelectConversation(target); setView('chat'); } }} onNavigate={setView} />}
+
+      {newBot && <BotEditor initial={newBot} bots={bots} onClose={() => setNewBot(null)} onSaved={async bot => { setNewBot(null); onBotCreated(bot); setView('chat'); }} />}
 
       {/* ── 主区域 ──────────────────────────────────────── */}
       <div className="app-main" role="main">
         <TitleBar
-          actions={<Button size="sm" variant="ghost" onClick={() => guide.setOpen(true)}>使用引导</Button>}
+          onOpenGuide={() => guide.setOpen(true)}
           title={view === 'chat' ? activeBot.name : VIEW_TITLES[view]}
-          subtitle={VIEW_SUBTITLES[view]}
           connection={health.state}
-          theme={theme}
-          onToggleTheme={toggleTheme}
+          settingsOpen={view !== 'chat'}
           onOpenMenu={() => setMobileOpen(true)}
         />
+        {view !== 'chat' && <SettingsNav view={view} onNavigate={setView} memoryCount={memoryCount} />}
 
         <GettingStarted guide={guide} modelConfigured={health.state === 'online' && health.health?.demoMode === false} onNavigate={navigateGuide} />
 
@@ -257,14 +223,14 @@ function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError }: { 
             offline={health.state === 'offline'}
             onRetryConnection={() => void health.refresh()}
             retrying={health.state === 'connecting'}
-            model={activeBot.model || settings.llm.model}
             demoMode={health.health?.demoMode}
             onModelSettings={() => setView('settings')}
           />
         )}
 
         {view === 'bots' && <BotsPage bots={bots} active={activeBot.id} onSelect={id => { onSelectBot(id); setView('chat'); }} onReload={onReloadBots} error={botError} />}
-        {view === 'tasks' && <TasksPage example={exampleTask} onExampleUsed={() => setExampleTask(false)} bots={bots} bot={activeBot} demo={health.health?.demoMode} />}
+        {view === 'history' && <ConversationHistoryPage bots={bots} inbox={inbox} onReload={onReloadInbox} onSelect={(botId, id) => { if (botId === activeBot.id) { if (id) handleSelectConversation(id); setView('chat'); } else onSelectBot(botId, id); }} />}
+        {view === 'tasks' && <TasksPage runs={runs.byBot[activeBot.id] ?? []} runsError={runs.errors[activeBot.id]} onReload={runs.reload} example={exampleTask} onExampleUsed={() => setExampleTask(false)} bots={bots} bot={activeBot} demo={health.health?.demoMode} />}
         {view === 'shared' && <SharedNotesPage bots={bots} />}
 
         {view === 'memories' && (
@@ -324,9 +290,12 @@ function AppContent({ bots, activeBot, onSelectBot, onReloadBots, botError }: { 
 export default function App() {
   const [bots, setBots] = useState<Bot[]>([DEFAULT_BOT]);
   const [activeID, setActiveID] = useState('soren');
+  const [initialConversation, setInitialConversation] = useState<string | null>(null);
+  const botInbox = useBotInbox(bots);
   const [botError, setBotError] = useState<string | null>(null);
   const restored = useRef(false);
-  const choose = useCallback((id: string) => {
+  const choose = useCallback((id: string, conversationId?: string) => {
+    setInitialConversation(conversationId ?? null);
     setActiveBotID(id); setActiveID(id);
     try { localStorage.setItem('soren.active-bot', id); } catch { /* Optional preference storage. */ }
   }, []);
@@ -343,5 +312,5 @@ export default function App() {
   useEffect(() => { let disposed = false; let timer: ReturnType<typeof setTimeout>; const poll = async () => { if (disposed) return; await reload(); if (!disposed) timer = setTimeout(poll, 10000); }; void poll(); return () => { disposed = true; clearTimeout(timer); }; }, [reload]);
   useEffect(() => { if (!bots.some(b => b.id === activeID && b.status !== 'archived')) choose('soren'); }, [bots, activeID, choose]);
   const activeBot = bots.find(b => b.id === activeID) || DEFAULT_BOT;
-  return <ToastProvider><AppContent key={activeID} bots={bots} activeBot={activeBot} onSelectBot={choose} onReloadBots={reload} botError={botError} /></ToastProvider>;
+  return <ToastProvider><AppContent key={activeID} bots={bots} activeBot={activeBot} onSelectBot={choose} onReloadBots={reload} botError={botError} inbox={botInbox.inbox} onReloadInbox={botInbox.reload} initialConversation={initialConversation} onBotCreated={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); choose(bot.id); void reload(); }} /></ToastProvider>;
 }

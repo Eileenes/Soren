@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { ConnectionAppCard } from './ConnectionAppCard';
+import { ConnectionAppIcon } from './ConnectionAppIcon';
 import { agentsAPI, avatarURL, type Bot } from '../services/agents';
 import { connectionRequest as request, openExternal, type Connection } from '../services/connections';
 import { describeError } from '../services/api';
 import { Button, Modal, PasswordField, TextField } from './ui';
 import { IconDatabase, IconInbox, IconPlug } from './icons';
-import { isKeyKind, keyKinds, type KeyKindId } from './connectorKinds';
+import { connectionKind, isKeyKind, keyKinds, mcpPresetEndpoint, type KeyKindId } from './connectorKinds';
 
 type Kind = 'gmail' | 'notion' | 'mcp' | KeyKindId;
 const cards = [
@@ -13,7 +15,7 @@ const cards = [
 ] as const;
 const kindTitle = (kind: Kind | null) => kind === 'gmail' ? 'Gmail' : kind === 'notion' ? 'Notion' : isKeyKind(kind) ? keyKinds[kind].title : 'MCP';
 
-export function ConnectionsPanel() {
+export function ConnectionsPanel({ children }: { children?: ReactNode }) {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
   const [kind, setKind] = useState<Kind | null>(null);
@@ -31,17 +33,23 @@ export function ConnectionsPanel() {
     try {
       if (editing) await request('PUT', `/connections/${editing.id}`, {...editing, allowedBots: allowed});
       else if (kind === 'gmail') { const result = await request<{url: string}>('POST', '/connections/gmail/authorize', {clientId, clientSecret: token, allowedBots: allowed}); await openExternal(result.url); setNotice('在浏览器完成 Google 授权后，连接会出现在这里。'); }
-      else await request('POST', '/connections', {kind, name, endpoint, token, allowedBots: allowed});
+      else {
+        if (isKeyKind(kind) && !token.trim()) throw new Error(`请填写 ${keyKinds[kind].title} API Key`);
+        const presetEndpoint = mcpPresetEndpoint(kind);
+        await request('POST', '/connections', {kind: presetEndpoint ? 'mcp' : kind, name, endpoint: presetEndpoint || endpoint, token: isKeyKind(kind) ? token.trim() : token, allowedBots: allowed});
+      }
       setToken(''); setKind(null); setEditing(null); await reload();
     } catch (e) { setError(describeError(e)); } finally { setBusy(false); }
   };
   const disconnect = async (c: Connection) => { setBusy(true); setError(''); try { await request('DELETE', `/connections/${c.id}`); await reload(); } catch (e) { setError(describeError(e)); } finally { setBusy(false); } };
   return <section className="mb-9 space-y-5">
-    <div className="connector-grid">{cards.map(([id, title, caption, Icon]) => <button key={id} onClick={() => add(id as Kind)} className="connector-add"><span className="connector-symbol"><Icon size={23} /></span><span><strong>{title}</strong><small>{caption}</small></span><span className="ml-auto text-xl text-ink-3">+</span></button>)}</div>
+    <div className="application-catalog">{cards.map(([id, title, caption, Icon]) => <ConnectionAppCard key={id} title={title} description={caption} icon={<ConnectionAppIcon app={id} fallback={<Icon size={23} />} />} detail={connections.some(c => connectionKind(c) === id) ? `${connections.filter(c => connectionKind(c) === id).length} 个已连接账号` : undefined} onAdd={() => add(id as Kind)} />)}{children}</div>
     {error && <p role="alert" className="bot-error">{error}</p>}{notice && <p role="status" className="text-sm text-ink-2">{notice}</p>}
-    {connections.length > 0 ? <div className="space-y-3">{connections.map(c => <article className="connector-row" key={c.id}><div className="min-w-0 flex-1"><div className="flex items-center gap-3"><strong className="text-sm text-ink-1">{c.name}</strong><span className="text-xs text-primary-start">{c.enabled ? '已连接' : '已停用'}</span></div><p className="mt-1 truncate text-xs text-ink-3">{c.account}</p><div className="mt-3 flex flex-wrap items-center gap-2">{c.allowedBots.length ? c.allowedBots.map(id => { const bot = bots.find(b => b.id === id); return bot && <span key={id} className="connector-bot"><img src={avatarURL(bot.avatar)} alt="" />{bot.name}</span>; }) : <span className="text-xs text-ink-3">未分配 Bot</span>}</div></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => { setEditing(c); setKind(c.kind as Kind); setAllowed(c.allowedBots); setError(''); }}>权限</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void disconnect(c)}>断开</Button></div></article>)}</div> : <p className="py-4 text-center text-sm text-ink-3">连接一个应用，交给 Bot 使用。</p>}
+
     <Modal open={Boolean(kind)} onClose={close} title={editing ? `${editing.name} · Bot 权限` : `连接 ${kindTitle(kind)}`} footer={<><Button variant="ghost" disabled={busy} onClick={close}>取消</Button><Button loading={busy} onClick={() => void save()}>{editing ? '保存' : kind === 'gmail' ? '前往 Google 授权' : '验证并连接'}</Button></>}>
-      <div className="space-y-5">{!editing && <>
+      <div className="space-y-5">
+      {!editing && connections.some(c => connectionKind(c) === kind) && <section aria-label="已连接账号" className="space-y-3"><h3 className="text-sm font-semibold">已连接账号</h3>{connections.filter(c => connectionKind(c) === kind).map(c => <article className="connector-row" key={c.id}><div className="min-w-0 flex-1"><strong className="text-sm">{c.name}</strong><p className="mt-1 truncate text-xs text-ink-3">{c.account || (c.enabled ? '已连接' : '已停用')}</p><p className="mt-1 text-xs text-ink-3">{c.allowedBots.length ? c.allowedBots.map(id => bots.find(b => b.id === id)?.name || id).join('、') : '未分配 Bot'}</p></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => { setEditing(c); setAllowed(c.allowedBots); setError(''); }}>权限</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void disconnect(c)}>断开</Button></div></article>)}<h3 className="pt-3 text-sm font-semibold">添加连接</h3></section>}
+      {!editing && <>
         {kind === 'gmail' ? <><p className="text-sm leading-6 text-ink-2">使用 Google 桌面 OAuth 客户端。凭据保存在本机系统凭据库。</p><TextField label="Google Client ID" value={clientId} onChange={e => setClientId(e.target.value)} autoComplete="off" /><PasswordField label="Google Client Secret" value={token} onChange={e => setToken(e.target.value)} autoComplete="off" /></> : <>
           {kind === 'mcp' && <><TextField label="连接名称" value={name} onChange={e => setName(e.target.value)} maxLength={100} /><TextField label="HTTPS MCP 地址" placeholder="https://example.com/mcp" value={endpoint} onChange={e => setEndpoint(e.target.value)} /><p className="text-xs leading-5 text-ink-3">支持 Streamable HTTP 和 Bearer 令牌。远程工具逐次确认；尚不支持 MCP OAuth 登录。</p></>}
           {isKeyKind(kind) && <><p className="text-sm leading-6 text-ink-2">{keyKinds[kind].hint}</p><button type="button" className="text-xs text-primary-start underline" onClick={() => void openExternal(keyKinds[kind].keyURL).catch(e => setError(describeError(e)))}>获取 API Key</button></>}

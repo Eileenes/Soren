@@ -29,6 +29,7 @@ export function MobileDevices() {
         const next = await connectionRequest<Status>("GET", "/mobile");
         if (active) {
           setStatus(next);
+          setError("");
           if (!next.enabled) setPair(null);
         }
       } catch (e) {
@@ -75,6 +76,12 @@ export function MobileDevices() {
   return (
     <div className="space-y-5">
       <IOSDownload />
+      <div className="rounded-xl border border-line p-5 text-sm leading-7 text-ink-2">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-ink-1">同一个 Bot，接着聊</h3><span className="rounded-full bg-surface-3 px-3 py-1 text-xs">聊天同步 · 开发中</span></div>
+        <p className="mt-3">计划让 Mac 和手机共用每个 Bot 的对话与记忆。在 Mac 上聊到哪里，手机就从哪里继续。</p>
+        <ol className="mt-3 list-decimal space-y-1 pl-5"><li>安装手机 App，扫描 Mac 上的配对码。</li><li>在两端核对确认码，允许设备关联。</li><li>Mac 保持联网、唤醒，手机即可访问同一份数据。</li></ol>
+        <p className="mt-3 text-xs leading-6 text-ink-3">目前已有设备配对、加密连接和任务／记忆访问能力；完整聊天同步仍在开发。首版数据保存在 Mac，手机离线时不能发送消息，Mac 休眠或关机时也无法处理请求。</p>
+      </div>
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-ink-1">手机连接</p>

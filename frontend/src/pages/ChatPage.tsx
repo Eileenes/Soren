@@ -12,15 +12,14 @@ import { ChatEmptyState } from '../components/chat/ChatEmptyState';
 import { ChatInput } from '../components/chat/ChatInput';
 import { MessageBubble } from '../components/chat/MessageBubble';
 import { OfflineBanner } from '../components/layout/Shell';
-import { IconArrowDown, IconTrash } from '../components/icons';
-import { Button, SkeletonList, Tooltip } from '../components/ui';
+import { IconArrowDown } from '../components/icons';
+import { Button, SkeletonList } from '../components/ui';
 import { useScrollPosition } from '../hooks/useUtilities';
 import type { UseChatResult } from '../hooks/useChat';
 
 export interface ChatPageProps {
  bot?: Bot;
   chat: UseChatResult;
-  model?: string;
   demoMode?: boolean;
   onModelSettings?: () => void;
   /** 后端是否离线 */
@@ -28,8 +27,6 @@ export interface ChatPageProps {
   /** 重新检测后端 */
   onRetryConnection?: () => void;
   retrying?: boolean;
-  /** 清空当前会话 */
-  onClearConversation?: () => void;
 }
 
 export function ChatPage({
@@ -38,8 +35,6 @@ export function ChatPage({
   offline,
   onRetryConnection,
   retrying = false,
-  onClearConversation,
-  model,
   demoMode,
   onModelSettings,
 }: ChatPageProps) {
@@ -51,7 +46,6 @@ export function ChatPage({
     error,
     send,
     stop,
-    reset,
     removeMessage,
   } = chat;
 
@@ -87,33 +81,12 @@ export function ChatPage({
     [send],
   );
 
-  const handleClear = useCallback(() => {
-    reset();
-    onClearConversation?.();
-  }, [reset, onClearConversation]);
-
   // 最后一条助手消息允许重新生成
 
   const isEmpty = messages.length === 0 && !loadingHistory && !error;
 
   return (
     <div className={"chat-page " + (isEmpty ? "is-empty" : "has-messages")}>
-      {/* 会话操作条：有内容时才出现 */}
-      {messages.length > 0 && (
-        <div className="flex items-center justify-end gap-1 px-6 pt-3">
-          <Tooltip content="开始新对话，当前记录仍在历史中">
-            <Button
-              size="sm"
-              variant="ghost"
-              leadingIcon={<IconTrash size={13} />}
-              onClick={handleClear}
-            >
-              新的对话
-            </Button>
-          </Tooltip>
-        </div>
-      )}
-
       {offline && (
         <OfflineBanner onRetry={onRetryConnection} retrying={retrying} />
       )}
@@ -186,7 +159,7 @@ export function ChatPage({
             onClick={() => scrollToBottom('smooth')}
             aria-label="回到底部"
             className={cn(
-              'pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full',
+              'control-icon pointer-events-auto flex items-center justify-center',
               'glass-panel-strong text-ink-2 shadow-lg',
               'transition-all duration-base ease-ease hover:scale-105 hover:text-ink-1',
               'animate-fade-in',
@@ -205,8 +178,6 @@ export function ChatPage({
         disabled={bot?.status === 'paused' || offline}
         loading={loading}
         draft={draft}
-        model={demoMode ? '本地体验模式' : model}
-        onModelSettings={onModelSettings}
       />
 
 

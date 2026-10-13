@@ -66,7 +66,7 @@ export default {
       },
 
       fontFamily: {
-        sans: ['Avenir Next', 'Avenir', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'SFMono-Regular', 'Consolas', 'monospace'],
       },
 
@@ -81,7 +81,7 @@ export default {
       },
 
       fontWeight: {
-        normal: '400',
+        normal: '500',
         medium: '500',
         semibold: '600',
         bold: '700',

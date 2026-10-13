@@ -67,12 +67,20 @@ export const IconPlug = createIcon(
 export const IconSettings = createIcon(
   <>
     <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.35.4.63.72.81" />
+    <path d="m9.5 3-.6 2.1-1.4.8-2.1-.5L3 9.6l1.5 1.6v1.6L3 14.4l2.4 4.2 2.1-.5 1.4.8.6 2.1h5l.6-2.1 1.4-.8 2.1.5 2.4-4.2-1.5-1.6v-1.6L21 9.6l-2.4-4.2-2.1.5-1.4-.8-.6-2.1Z" />
   </>,
   'IconSettings',
 );
 
 /* ── 操作 ───────────────────────────────────────────────── */
+
+export const IconEdit = createIcon(
+  <>
+    <path d="m16 3 5 5-12 12-6 1 1-6L16 3Z" />
+    <path d="m13 6 5 5" />
+  </>,
+  'IconEdit',
+);
 
 export const IconPlus = createIcon(
   <>
@@ -331,4 +339,9 @@ export const IconWindowMinimize = createIcon(<path d="M5 12h14" />, 'IconWindowM
 export const IconWindowMaximize = createIcon(
   <rect x="5" y="5" width="14" height="14" rx="2" />,
   'IconWindowMaximize',
+);
+
+export const IconHelp = createIcon(
+  <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5" /><path d="M12 16.5h.01" /></>,
+  'IconHelp',
 );

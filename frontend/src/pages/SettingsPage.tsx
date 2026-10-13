@@ -246,11 +246,11 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
               </button>
             ))}
           </div>
-          <div className="mt-6 flex items-center justify-between gap-4 border-t border-line pt-5"><div><p className="text-sm font-medium text-ink-1">记忆提示</p><p className="mt-1 text-xs text-ink-3">在侧栏显示已保存的记忆数量。</p></div><Switch label="显示记忆统计" checked={showMemoryBadge} onChange={onSetShowMemoryBadge} /></div>
+          <div className="mt-6 flex items-center justify-between gap-4 border-t border-line pt-5"><div><p className="text-sm font-medium text-ink-1">记忆提示</p><p className="mt-1 text-xs text-ink-3">在设置的「我的记忆」入口显示已保存的记忆数量。</p></div><Switch label="显示记忆统计" checked={showMemoryBadge} onChange={onSetShowMemoryBadge} /></div>
           <details className="mt-5 text-sm text-ink-2"><summary className="cursor-pointer py-1">语言偏好</summary><div className="mt-3 max-w-xs"><SelectField label="偏好语言" value={language} onChange={onSetLanguage} options={[{ value: 'zh-CN', label: '简体中文' }, { value: 'en-US', label: 'English' }]} helper="当前界面以中文呈现；完整英文界面正在规划中。" /></div></details>
         </SettingsSection>
 
-        <SettingsSection number="03" title="关联设备"><MobileDevices /></SettingsSection>
+        <SettingsSection number="03" title="移动端与同步"><MobileDevices /></SettingsSection>
         <SettingsSection number="04" title="数据">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3"><span className="rounded-xl bg-primary-start/10 p-3 text-primary-start"><IconDatabase size={21} /></span><div><p className="text-sm font-medium text-ink-1">本地数据空间 · 无需登录</p><p className="mt-1 break-all text-xs text-ink-2">{desktopConfig?.dataDir ?? (desktop ? '正在读取存储位置…' : '在桌面应用中管理本地文件')}</p></div></div>
@@ -259,7 +259,6 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
           <p className="mt-4 text-xs leading-6 text-ink-3">对话时，相关内容会发送至你配置的模型服务。当前记忆状态：{health?.memoryEnabled === undefined ? '等待连接' : health.memoryEnabled ? '已开启' : '未开启'}。</p>
         </SettingsSection>
 
-        <section className="rounded-xl border border-line px-5 py-4"><div className="flex items-center justify-between text-sm"><span>手机联动</span><span className="text-xs text-ink-3">待部署</span></div><p className="mt-2 text-xs text-ink-3">本地使用无需 GitHub 账号。手机扫码配对尚未开放。</p></section>
         <details className="rounded-xl border border-line px-5 py-4 text-sm text-ink-2">
           <summary className="cursor-pointer"><span className="ml-1">本地服务</span><span className={cn('ml-3 text-xs', connection === 'online' ? 'text-primary-start' : 'text-ink-3')}>{connection === 'online' ? '运行正常' : connection === 'connecting' ? '正在连接' : '等待连接'}</span></summary>
           <div className="mt-4 space-y-4">

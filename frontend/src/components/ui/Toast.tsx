@@ -84,7 +84,7 @@ export function Toast({
         type="button"
         onClick={() => onDismiss(id)}
         aria-label="关闭通知"
-        className="mt-0.5 rounded p-1 text-ink-3 transition-colors duration-fast hover:text-ink-1"
+        className="control-icon inline-flex shrink-0 items-center justify-center text-ink-3 transition-colors duration-fast hover:text-ink-1"
       >
         <IconClose size={14} />
       </button>
