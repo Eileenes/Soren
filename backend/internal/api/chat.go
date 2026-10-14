@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/soren/backend/internal/agent"
+	"github.com/soren/backend/internal/botconfig"
 	"log"
 	"net/http"
 	"strings"
@@ -166,7 +167,7 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	})
 
 	if bot != nil {
-		prompt := "你是 " + bot.Name + "。以下是用户定义的职责：\n" + bot.Instructions
+		prompt := "你是 " + bot.Name + "。以下是用户定义的职责：\n" + botconfig.Prompt(bot.Instructions, bot.Definition)
 		prompt += "\n不具备工具时不要声称已经发送邮件、生成文件或访问外部应用。"
 		if h.agents != nil {
 			if shared := h.agents.SharedContext([]string{bot.ID}); shared != "" {

@@ -34,6 +34,7 @@ provider.json*
 oauth.json*
 mobile-identity.json*
 credentials.json
+deploy/templates/publishers.json
 secrets/
 docs/previews/
 frontend/src-tauri/gen/

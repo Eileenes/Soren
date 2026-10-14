@@ -1,0 +1,4 @@
+{$SOREN_TEMPLATE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy templates:8090
+}

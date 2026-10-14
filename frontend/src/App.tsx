@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { GettingStarted, useGettingStarted } from './components/GettingStarted';
 import { SettingsNav } from './components/layout/SettingsNav';
 import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
+import { TemplateImportHost } from './components/BotTemplates';
 import { BotEditor, blankBot } from './components/BotEditor';
 import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { RenameChatDialog } from './components/RenameChatDialog';
@@ -341,8 +342,8 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         onClose={() => setRenameBot(null)}
         onRename={name => handleRenameBot(renameBot, name)} />}
 
-      <ConfirmDialog open={Boolean(deleteBot)} title="删除 Bot" danger loading={deletingBot}
-        confirmText="删除 Bot" cancelText="取消" onConfirm={() => void confirmDeleteBot()}
+      <ConfirmDialog open={Boolean(deleteBot)} title="归档 Bot" danger loading={deletingBot}
+        confirmText="归档 Bot" cancelText="取消" onConfirm={() => void confirmDeleteBot()}
         onCancel={() => { if (!deletingBot) { setDeleteBot(null); setDeleteBotError(''); } }}
         message={<>
           将「{deleteBot?.name}」移入已归档并从侧栏移除。对话和记忆会保留，可在「我的 Bot → 已归档」恢复；归档后该 Bot 无法继续执行任务或参与群聊。
@@ -540,5 +541,5 @@ export default function App() {
     onBotCreated={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }}
     onBotUpdated={bot => setBots(previous => previous.map(item => item.id === bot.id ? bot : item))}
     onGroupCreated={chooseGroup}
-  /></ToastProvider>;
+  /><TemplateImportHost onImported={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }} /></ToastProvider>;
 }

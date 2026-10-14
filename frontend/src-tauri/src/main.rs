@@ -3,6 +3,9 @@
 mod backend;
 mod models;
 mod oauth;
+mod template_links;
+use tauri_plugin_deep_link::DeepLinkExt;
+use template_links::take_template_links;
 
 use backend::{BackendProcess, ConfigInput, DesktopConfig};
 use tauri::menu::{Menu, MenuItem};
@@ -131,9 +134,18 @@ fn export_markdown(title: String, content: String) -> Result<String, String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
+        .manage(template_links::TemplateLinks::default())
         .manage(BackendProcess::new())
         .manage(oauth::OAuthConfigStore::default())
         .invoke_handler(tauri::generate_handler![
+            take_template_links,
             get_oauth_config,
             save_oauth_config,
             get_desktop_config,
@@ -144,6 +156,14 @@ fn main() {
             export_markdown
         ])
         .setup(|app| {
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            app.deep_link().register_all()?;
+            let link_handle = app.handle().clone();
+            app.deep_link()
+                .on_open_url(move |event| template_links::receive(&link_handle, event.urls()));
+            if let Some(urls) = app.deep_link().get_current()? {
+                template_links::receive(app.handle(), urls);
+            }
             let show = MenuItem::with_id(app, "show", "打开 Soren", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 Soren", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;

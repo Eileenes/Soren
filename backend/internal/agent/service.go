@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/soren/backend/internal/botconfig"
 	"github.com/soren/backend/internal/connectors"
 	"github.com/soren/backend/internal/llm"
 	"github.com/soren/backend/internal/memory"
@@ -22,22 +23,32 @@ const DefaultBotID = "soren"
 var ErrConflict = errors.New("内容已在其他窗口更新，请刷新后重试")
 var Avatars = []string{"soren", "angler", "flamingo", "hydrant", "iceberg", "pudin", "rex", "robo", "saboten", "tako", "yurei"}
 
+type TemplateSource struct {
+	Service  string `json:"service"`
+	ID       string `json:"id"`
+	Revision int    `json:"revision"`
+	Digest   string `json:"digest"`
+}
+
 type Bot struct {
-	ID                   string     `gorm:"primaryKey;size:36" json:"id"`
-	Name                 string     `json:"name"`
-	Avatar               string     `json:"avatar"`
-	Instructions         string     `json:"instructions"`
-	Model                string     `json:"model"`
-	MemoryEnabled        bool       `json:"memoryEnabled"`
-	CollaborationEnabled bool       `json:"collaborationEnabled"`
-	CollaborationAll     bool       `json:"collaborationAll"`
-	Collaborators        []string   `gorm:"serializer:json;type:text" json:"collaborators"`
-	Status               string     `json:"status"`
-	Pinned               bool       `gorm:"not null;default:false" json:"pinned"`
-	PinnedAt             *time.Time `json:"pinnedAt,omitempty"`
-	Version              int        `json:"version"`
-	CreatedAt            time.Time  `json:"createdAt"`
-	UpdatedAt            time.Time  `json:"updatedAt"`
+	Definition           botconfig.Definition `gorm:"serializer:json;type:text" json:"definition"`
+	Policy               *botconfig.Policy    `gorm:"serializer:json;type:text" json:"policy"`
+	TemplateSource       *TemplateSource      `gorm:"serializer:json;type:text" json:"templateSource,omitempty"`
+	ID                   string               `gorm:"primaryKey;size:36" json:"id"`
+	Name                 string               `json:"name"`
+	Avatar               string               `json:"avatar"`
+	Instructions         string               `json:"instructions"`
+	Model                string               `json:"model"`
+	MemoryEnabled        bool                 `json:"memoryEnabled"`
+	CollaborationEnabled bool                 `json:"collaborationEnabled"`
+	CollaborationAll     bool                 `json:"collaborationAll"`
+	Collaborators        []string             `gorm:"serializer:json;type:text" json:"collaborators"`
+	Status               string               `json:"status"`
+	Pinned               bool                 `gorm:"not null;default:false" json:"pinned"`
+	PinnedAt             *time.Time           `json:"pinnedAt,omitempty"`
+	Version              int                  `json:"version"`
+	CreatedAt            time.Time            `json:"createdAt"`
+	UpdatedAt            time.Time            `json:"updatedAt"`
 }
 type BotVersion struct {
 	ID        uint   `gorm:"primaryKey"`
@@ -129,6 +140,9 @@ func Contains(values []string, id string) bool {
 	return false
 }
 func validateBot(db *gorm.DB, b *Bot) error {
+	if err := botconfig.Validate(b.Definition, b.Policy); err != nil {
+		return err
+	}
 	b.Name = strings.TrimSpace(b.Name)
 	b.Instructions = strings.TrimSpace(b.Instructions)
 	b.Model = strings.TrimSpace(b.Model)
@@ -165,6 +179,10 @@ func validateBot(db *gorm.DB, b *Bot) error {
 	return nil
 }
 func (s *Service) SaveBot(b *Bot, create bool) error {
+	if s.Tools != nil {
+		s.Tools.PolicyLock.Lock()
+		defer s.Tools.PolicyLock.Unlock()
+	}
 	if create {
 		b.ID = uuid.NewString()
 		b.Version = 1
@@ -173,8 +191,6 @@ func (s *Service) SaveBot(b *Bot, create bool) error {
 		b.Status = "active"
 		b.Pinned = false
 		b.PinnedAt = nil
-		b.CollaborationEnabled = true
-		b.CollaborationAll = true
 	}
 	if err := validateBot(s.DB, b); err != nil {
 		return err
@@ -188,7 +204,7 @@ func (s *Service) SaveBot(b *Bot, create bool) error {
 			expected := b.Version
 			b.Version++
 			b.UpdatedAt = time.Now()
-			result := tx.Model(&Bot{}).Where("id = ? AND version = ?", b.ID, expected).Select("name", "avatar", "instructions", "model", "memory_enabled", "collaboration_enabled", "collaboration_all", "collaborators", "status", "version", "updated_at").Updates(b)
+			result := tx.Model(&Bot{}).Where("id = ? AND version = ?", b.ID, expected).Select("definition", "policy", "name", "avatar", "instructions", "model", "memory_enabled", "collaboration_enabled", "collaboration_all", "collaborators", "status", "version", "updated_at").Updates(b)
 			if result.Error != nil {
 				return result.Error
 			}
@@ -274,9 +290,9 @@ func (s *Service) Start(owner, requestID, goal string, peers []string) (*Run, er
 		if !lead.CollaborationEnabled || !b.CollaborationEnabled || (!lead.CollaborationAll && !Contains(lead.Collaborators, id)) || (!b.CollaborationAll && !Contains(b.Collaborators, owner)) {
 			return nil, errors.New("双方需在配置中允许与对方协作")
 		}
-		steps = append(steps, Step{BotID: b.ID, Name: b.Name, Avatar: b.Avatar, Instructions: b.Instructions, Model: b.Model, Status: "queued"})
+		steps = append(steps, Step{BotID: b.ID, Name: b.Name, Avatar: b.Avatar, Instructions: botconfig.Prompt(b.Instructions, b.Definition), Model: b.Model, Status: "queued"})
 	}
-	steps = append(steps, Step{BotID: lead.ID, Name: lead.Name, Avatar: lead.Avatar, Instructions: lead.Instructions, Model: lead.Model, Status: "queued"})
+	steps = append(steps, Step{BotID: lead.ID, Name: lead.Name, Avatar: lead.Avatar, Instructions: botconfig.Prompt(lead.Instructions, lead.Definition), Model: lead.Model, Status: "queued"})
 	sharedIDs := append(append([]string{}, peers...), owner)
 	run := &Run{ID: uuid.NewString(), RequestID: requestID, OwnerBotID: owner, Goal: goal, Status: "queued", Steps: steps, Demo: s.Demo, SharedRevision: s.sharedRevision(sharedIDs)}
 	if err := s.DB.Create(run).Error; err != nil {
@@ -470,6 +486,7 @@ func (s *Service) sharedRevision(ids []string) string {
 
 func (s *Service) AttachTools(t *connectors.Service) {
 	s.Tools = t
+	t.Policy = s.actionPolicy
 	t.Authorize = func(id string) error {
 		var r Run
 		if err := s.DB.First(&r, "id = ?", id).Error; err != nil {

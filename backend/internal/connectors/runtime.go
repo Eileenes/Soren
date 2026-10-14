@@ -22,9 +22,11 @@ var ErrDenied = errors.New("用户拒绝操作，任务已停止")
 var ErrUncertain = errors.New("外部操作结果待核实，任务已停止；不会自动重试")
 
 type Service struct {
-	DB    *gorm.DB
-	Vault Vault
-	HTTP  *http.Client
+	PolicyLock sync.RWMutex
+	Policy     func(bot, run, action string) (bool, string, error)
+	DB         *gorm.DB
+	Vault      Vault
+	HTTP       *http.Client
 	// Downloads from public signed URLs never carry connector credentials.
 	DownloadHTTP         *http.Client
 	DataDir              string
@@ -161,6 +163,17 @@ func (s *Service) Loop(ctx context.Context, p llm.Provider, bot, run string, ste
 		if e != nil {
 			return nil, e
 		}
+		if s.Policy != nil {
+			for name, b := range catalog {
+				confirm, _, err := s.Policy(bot, run, actionKey(b))
+				if err != nil {
+					delete(catalog, name)
+				} else {
+					b.Approval = b.Approval || confirm
+					catalog[name] = b
+				}
+			}
+		}
 		// Locate the last assistant turn and finish any unrecorded tool results.
 		last := -1
 		for i := len(messages) - 1; i >= 0; i-- {
@@ -242,9 +255,20 @@ func (s *Service) runActive(id string) bool {
 	return n == 1
 }
 func (s *Service) invoke(ctx context.Context, catalog map[string]binding, bot, run, key string, call llm.ToolCall) (string, error) {
+	s.PolicyLock.RLock()
+	defer s.PolicyLock.RUnlock()
 	b, ok := catalog[call.Function.Name]
 	if !ok {
 		return "", errors.New("工具未授权或连接已断开")
+	}
+	policyRevision := ""
+	if s.Policy != nil {
+		confirm, revision, err := s.Policy(bot, run, actionKey(b))
+		if err != nil {
+			return "", err
+		}
+		b.Approval = b.Approval || confirm
+		policyRevision = revision
 	}
 	if len(call.Function.Arguments) > 100000 || !json.Valid([]byte(call.Function.Arguments)) {
 		return "", errors.New("工具参数无效或过长")
@@ -271,7 +295,7 @@ func (s *Service) invoke(ctx context.Context, catalog map[string]binding, bot, r
 		if b.Approval {
 			status = "pending"
 		}
-		inv = Invocation{ID: key, RunID: run, BotID: bot, ConnectionID: b.Connection.ID, ConnectionName: b.Connection.Name, Account: b.Connection.Account, ConnectionVersion: b.Connection.Version, Tool: call.Function.Name, Arguments: call.Function.Arguments, Status: status}
+		inv = Invocation{PolicyRevision: policyRevision, ID: key, RunID: run, BotID: bot, ConnectionID: b.Connection.ID, ConnectionName: b.Connection.Name, Account: b.Connection.Account, ConnectionVersion: b.Connection.Version, Tool: call.Function.Name, Arguments: call.Function.Arguments, Status: status}
 		if e = s.DB.Create(&inv).Error; e != nil {
 			return "", e
 		}
@@ -292,6 +316,9 @@ func (s *Service) invoke(ctx context.Context, catalog map[string]binding, bot, r
 		return "", ErrUncertain
 	case "running":
 		return "", ErrUncertain
+	}
+	if inv.PolicyRevision != policyRevision {
+		return "", errors.New("Bot 配置或授权已变更，请重新发起任务")
 	}
 	if b.Connection.ID != "" {
 		var current Connection

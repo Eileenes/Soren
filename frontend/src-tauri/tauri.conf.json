@@ -62,5 +62,14 @@
       "minimumSystemVersion": "12.0",
       "signingIdentity": "-"
     }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "soren"
+        ]
+      }
+    }
   }
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/soren/backend/internal/agent"
+	"github.com/soren/backend/internal/botconfig"
 	"github.com/soren/backend/internal/llm"
 	"github.com/soren/backend/internal/memory"
 	"github.com/soren/backend/internal/models"
@@ -518,7 +519,7 @@ func (o *Orchestrator) buildMessages(
 // 迅速趋同，讨论产出因此无效。
 func (o *Orchestrator) systemPrompt(chat *models.GroupChat, bot *agent.Bot, members []string, mode string, round, rounds int) string {
 	var out strings.Builder
-	out.WriteString("你是 " + bot.Name + "。以下是用户定义的职责：\n" + bot.Instructions)
+	out.WriteString("你是 " + bot.Name + "。以下是用户定义的职责：\n" + botconfig.Prompt(bot.Instructions, bot.Definition))
 	out.WriteString("\n不具备工具时不要声称已经发送邮件、生成文件或访问外部应用。")
 	out.WriteString("\n\n你正在一个群聊中参与讨论，其他参与者：")
 	out.WriteString(strings.Join(memberNames(o.agents, members), "、"))

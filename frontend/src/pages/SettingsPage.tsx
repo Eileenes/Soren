@@ -1,4 +1,5 @@
 import { MobileDevices } from '../components/MobileDevices';
+import { TemplateSettingsForm } from '../components/TemplateSettingsForm';
 import { OAuthSettingsForm } from '../components/OAuthSettingsForm';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -256,7 +257,8 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
         </SettingsSection>
 
         <SettingsSection number="04" title="移动端与同步"><MobileDevices /></SettingsSection>
-        <SettingsSection number="05" title="数据">
+        <SettingsSection number="05" title="Bot 模板服务"><TemplateSettingsForm /></SettingsSection>
+        <SettingsSection number="06" title="数据">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3"><span className="rounded-xl bg-primary-start/10 p-3 text-primary-start"><IconDatabase size={21} /></span><div><p className="text-sm font-medium text-ink-1">本地数据空间 · 无需登录</p><p className="mt-1 break-all text-xs text-ink-2">{desktopConfig?.dataDir ?? (desktop ? '正在读取存储位置…' : '在桌面应用中管理本地文件')}</p></div></div>
             <Button disabled={!desktop} onClick={() => void openData()}>打开数据文件夹</Button>

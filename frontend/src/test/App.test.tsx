@@ -466,7 +466,7 @@ describe('Bot 侧栏右键操作', () => {
     });
     const user = userEvent.setup(); render(<App />);
     const menu = await openMenu();
-    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['置顶', '配置 Bot', '重命名 Bot', '删除']);
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['置顶', '配置 Bot', '重命名 Bot', '归档']);
     expect(screen.getByRole('button', { name: 'Soren' })).toHaveAttribute('aria-current', 'page');
     await user.click(within(menu).getByRole('menuitem', { name: '置顶' }));
     await waitFor(() => expect(apiMock.botUpdateNavigation).toHaveBeenCalledWith('helper', { version: 4, pinned: true }));
@@ -498,7 +498,7 @@ describe('Bot 侧栏右键操作', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it.each([false, true])('删除 Bot 需确认并归档，当前选中=%s 时保留或回退到 Soren', async selected => {
+  it.each([false, true])('归档 Bot 需确认并归档，当前选中=%s 时保留或回退到 Soren', async selected => {
     apiMock.botUpdateNavigation.mockImplementation(async () => {
       const archived = { ...helper, status: 'archived', version: 5 };
       apiMock.botList.mockResolvedValue([DEFAULT_BOT, archived]);
@@ -506,11 +506,11 @@ describe('Bot 侧栏右键操作', () => {
     });
     const user = userEvent.setup(); render(<App />);
     if (selected) await user.click(await screen.findByRole('button', { name: '小助手' }));
-    await user.click(within(await openMenu()).getByRole('menuitem', { name: '删除' }));
-    const dialog = screen.getByRole('dialog', { name: '删除 Bot' });
+    await user.click(within(await openMenu()).getByRole('menuitem', { name: '归档' }));
+    const dialog = screen.getByRole('dialog', { name: '归档 Bot' });
     expect(dialog).toHaveTextContent('对话和记忆会保留');
     expect(apiMock.botUpdateNavigation).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: '删除 Bot' }));
+    await user.click(within(dialog).getByRole('button', { name: '归档 Bot' }));
     await waitFor(() => expect(apiMock.botUpdateNavigation).toHaveBeenCalledWith('helper', { version: 4, archive: true }));
     await waitFor(() => expect(screen.queryByRole('button', { name: '小助手' })).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Soren' })).toHaveAttribute('aria-current', 'page');
@@ -519,9 +519,9 @@ describe('Bot 侧栏右键操作', () => {
   it('归档失败时保留目标 Bot 和错误提示，可取消', async () => {
     apiMock.botUpdateNavigation.mockRejectedValue(new Error('服务不可用'));
     const user = userEvent.setup(); render(<App />);
-    await user.click(within(await openMenu()).getByRole('menuitem', { name: '删除' }));
-    const dialog = screen.getByRole('dialog', { name: '删除 Bot' });
-    await user.click(within(dialog).getByRole('button', { name: '删除 Bot' }));
+    await user.click(within(await openMenu()).getByRole('menuitem', { name: '归档' }));
+    const dialog = screen.getByRole('dialog', { name: '归档 Bot' });
+    await user.click(within(dialog).getByRole('button', { name: '归档 Bot' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('服务不可用');
     expect(screen.getByRole('button', { name: '小助手' })).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: '取消' }));
@@ -536,7 +536,7 @@ describe('Bot 侧栏右键操作', () => {
     row.focus();
     await user.keyboard('{Shift>}{F10}{/Shift}');
     const menu = screen.getByRole('menu', { name: 'Bot 操作' });
-    expect(within(menu).getByRole('menuitem', { name: '删除' })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(menu).getByRole('menuitem', { name: '归档' })).toHaveAttribute('aria-disabled', 'true');
     await user.keyboard('{End}');
     expect(within(menu).getByRole('menuitem', { name: '重命名 Bot' })).toHaveClass('is-active');
     await user.keyboard('{ArrowDown}');

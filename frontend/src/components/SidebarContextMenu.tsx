@@ -45,7 +45,7 @@ export function SidebarContextMenu({ kind, pinned, anchor, deleteDisabled = fals
     { id: 'pin', label: pinned ? '取消置顶' : '置顶', Icon: IconPin, disabled: false, run: onTogglePin },
     { id: 'configure', label: kind === 'bot' ? '配置 Bot' : '配置群聊', Icon: IconSettings, disabled: false, run: onConfigure },
     { id: 'rename', label: kind === 'bot' ? '重命名 Bot' : '重命名聊天', Icon: IconEdit, disabled: false, run: onRename },
-    { id: 'delete', label: '删除', Icon: IconTrash, disabled: deleteDisabled, run: onDelete },
+    { id: 'delete', label: kind === 'bot' ? '归档' : '删除', Icon: IconTrash, disabled: deleteDisabled, run: onDelete },
   ];
 
   // 贴着右键点位展开，越界时夹回视口；下方放不下且上方更宽裕时翻到上方

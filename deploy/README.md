@@ -66,3 +66,7 @@ VITE_SOREN_RELAY_URL=https://relay.example.com npm --prefix mobile run ios:build
 - 单实例内存路由，重启不影响设备身份，但在途请求可能失败。不要直接加随机多副本；扩容需主节点路由分片或共享连接目录。
 - 公共 Web 入口属于可信代码分发面。正式客户端使用签名内置代码；不能把“传输加密”当作能抵御恶意网页代码更新。
 - Mac 下线或超时时返回离线/待核实，禁止云端冒充任务完成。长期失去 Mac 且没有本地备份时不能靠中继恢复数据。
+
+## Bot 模板分享服务
+
+独立部署文件位于 `deploy/templates/`。配置发布者凭据和 HTTPS 域名后，用户即可通过链接分享和导入 Bot；详见 [部署与使用说明](../docs/bot-template-service.md)。
