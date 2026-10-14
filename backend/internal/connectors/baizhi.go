@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Baizhi Cloud apps (music, image, browser, design prompt) share one shape:
+// Baizhi Cloud apps (music, image, video, browser, design prompt) share one shape:
 // a fixed HTTPS OpenAPI prefix, `Authorization: Bearer <API Key>`, and a set
 // of REST endpoints. Each kind is described declaratively below.
 
@@ -41,6 +41,7 @@ type kindTool struct {
 	Required []string
 	Approval bool
 	Build    func(args map[string]string) (apiCall, error)
+	Execute  func(context.Context, *Service, *kindSpec, string, map[string]string) (string, error)
 	// After optionally post-processes a JSON response (for example to save result files).
 	After func(ctx context.Context, s *Service, spec *kindSpec, body string) (string, error)
 }
@@ -77,6 +78,10 @@ func (s *Service) CheckKey(ctx context.Context, kind, key string) error {
 	}
 	if strings.TrimSpace(key) == "" {
 		return fmt.Errorf("请填写%s API Key", k.Title)
+	}
+	if kind == "video" {
+		_, err := s.videoRequest(ctx, k, key, "GET", k.Check, nil)
+		return err
 	}
 	req, e := http.NewRequestWithContext(ctx, "GET", s.base(k)+k.Check, nil)
 	if e != nil {
@@ -117,6 +122,9 @@ func (s *Service) executeKind(ctx context.Context, k *kindSpec, action, key stri
 	for _, t := range k.Tools {
 		if t.Action != action {
 			continue
+		}
+		if t.Execute != nil {
+			return t.Execute(ctx, s, k, key, args)
 		}
 		call, e := t.Build(args)
 		if e != nil {

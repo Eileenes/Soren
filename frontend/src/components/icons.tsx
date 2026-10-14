@@ -41,6 +41,11 @@ function createIcon(path: ReactNode, displayName: string) {
 
 /* ── 导航 ───────────────────────────────────────────────── */
 
+export const IconVideo = createIcon(
+  <><rect x="3" y="5" width="13" height="14" rx="3" /><path d="m16 10 5-3v10l-5-3" /></>,
+  'IconVideo',
+);
+
 export const IconSidebarCollapse = createIcon(
   <><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16m7-11-3 3 3 3" /></>,
   'IconSidebarCollapse',

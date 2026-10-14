@@ -22,9 +22,11 @@ var ErrDenied = errors.New("用户拒绝操作，任务已停止")
 var ErrUncertain = errors.New("外部操作结果待核实，任务已停止；不会自动重试")
 
 type Service struct {
-	DB                   *gorm.DB
-	Vault                Vault
-	HTTP                 *http.Client
+	DB    *gorm.DB
+	Vault Vault
+	HTTP  *http.Client
+	// Downloads from public signed URLs never carry connector credentials.
+	DownloadHTTP         *http.Client
 	DataDir              string
 	Authorize            func(string) error
 	GoogleAPI, NotionAPI string
@@ -38,7 +40,14 @@ func New(db *gorm.DB, v Vault, dir string) (*Service, error) {
 	if e := migrate(db); e != nil {
 		return nil, e
 	}
-	return &Service{DB: db, Vault: v, DataDir: dir, HTTP: &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, GoogleAPI: "https://gmail.googleapis.com/gmail/v1", NotionAPI: "https://api.notion.com/v1", pending: map[string]*oauthAttempt{}}, nil
+	noRedirect := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &Service{
+		DB: db, Vault: v, DataDir: dir,
+		HTTP:         &http.Client{Timeout: 45 * time.Second, CheckRedirect: noRedirect},
+		DownloadHTTP: &http.Client{Transport: publicTransport(), Timeout: 2 * time.Minute, CheckRedirect: noRedirect},
+		GoogleAPI:    "https://gmail.googleapis.com/gmail/v1", NotionAPI: "https://api.notion.com/v1",
+		pending: map[string]*oauthAttempt{},
+	}, nil
 }
 func has(items []string, id string) bool {
 	for _, x := range items {

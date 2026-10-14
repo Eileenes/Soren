@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { keyKinds } from '../components/connectorKinds';
+import { keyCredentialLabel, keyKinds, type KeyKindId } from '../components/connectorKinds';
 
 const request = vi.fn();
 const openExternal = vi.fn();
@@ -26,7 +26,7 @@ describe('ConnectionsPanel API-key connectors', () => {
     const preset = mcpPresets.find(p => p.id === id);
     render(<ConnectionsPanel />);
     fireEvent.click(await screen.findByRole('button', { name: `添加 ${k.title}` }));
-    fireEvent.change(await screen.findByLabelText(`${k.title} ${preset?.credential ?? 'API Key'}`), { target: { value: ' secret-key ' } });
+    fireEvent.change(await screen.findByLabelText(`${k.title} ${keyCredentialLabel(id as KeyKindId)}`), { target: { value: ' secret-key ' } });
     fireEvent.click(await screen.findByLabelText('Soren'));
     fireEvent.click(screen.getByText('验证并连接'));
     const transport = preset
@@ -93,5 +93,30 @@ describe('ConnectionsPanel API-key connectors', () => {
     fireEvent.change(screen.getByLabelText('HTTPS MCP 地址'), { target: { value: 'https://example.com/mcp' } });
     fireEvent.click(screen.getByRole('button', { name: '验证并连接' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ kind: 'mcp', endpoint: 'https://example.com/mcp', name: 'My tools', token: '' })));
+  });
+
+  it('connects VideoAPI with only a Key, keeps failed validation visible, and links to the official site', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'POST') throw new Error('视频 API Key 无效、已停用或权限不足，请重新连接');
+      return [];
+    });
+    render(<ConnectionsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: '添加 视频 API' }));
+    const dialog = screen.getByRole('dialog', { name: '连接 视频 API' });
+    const key = within(dialog).getByLabelText('视频 API Key');
+    expect(key).toHaveAttribute('type', 'password');
+    expect(within(dialog).queryByLabelText('HTTPS MCP 地址')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('连接名称')).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: '获取 Key' }));
+    expect(openExternal).toHaveBeenCalledWith('https://video-api.app.baizhi.cloud');
+    fireEvent.click(within(dialog).getByRole('button', { name: '验证并连接' }));
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('请填写 视频 API Key'));
+    expect(request.mock.calls.some(([method]) => method === 'POST')).toBe(false);
+    fireEvent.change(key, { target: { value: ' video-key ' } });
+    fireEvent.click(within(dialog).getByLabelText('Soren'));
+    fireEvent.click(within(dialog).getByRole('button', { name: '验证并连接' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ kind: 'video', name: '视频 API', token: 'video-key', allowedBots: ['soren'] })));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('请重新连接');
+    expect(dialog).toBeInTheDocument();
   });
 });
