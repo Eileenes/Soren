@@ -590,6 +590,8 @@ button:disabled { cursor: not-allowed; }
   .titlebar-divider { display: none; }
   .connection-badge { font-size: 9px; }
   .chat-content { padding: 5px 22px 15px; }
+  /* 761–1000px 档给了 .composer-wrap 水平内边距，这一档漏了，补齐后窄屏输入框不再贴边 */
+  .composer-wrap { padding-left: 16px; padding-right: 16px; }
   .welcome-intro { padding-top: 14px; }
   .welcome-eyebrow { font-size: 7px; letter-spacing: 1.4px; }
   .hero-mascot { height: 132px; width: 154px; margin-top: 7px; }
@@ -828,6 +830,32 @@ button:disabled { cursor: not-allowed; }
 .bot-inbox-row[aria-current=page] { background:rgb(var(--soren-ink-1)/.065); }
 .inbox-avatar { position:relative; display:grid; place-items:center; width:38px; height:38px; flex-shrink:0; }
 .inbox-avatar img { display:block; width:36px; height:36px; object-fit:contain; }
+/* 群头像按人数居中排列：2 并排、3 上一后二、4 方阵、5 上二下三、6 两行三列。 */
+.inbox-avatar.group-avatars {
+  display:grid;
+  grid-template-columns:repeat(6, 1fr);
+  grid-auto-rows:12px;
+  gap:1px;
+  align-content:center;
+  justify-content:center;
+}
+.inbox-avatar.group-avatars img {
+  grid-column:span 2;
+  width:100%; height:100%;
+  object-fit:contain;
+  border-radius:3px;
+  background:rgb(var(--soren-surface-4));
+}
+.inbox-avatar.group-avatars[data-count="1"] { grid-template-columns:30px; grid-auto-rows:30px; }
+.inbox-avatar.group-avatars[data-count="1"] img { grid-column:span 1; }
+.inbox-avatar.group-avatars[data-count="2"],
+.inbox-avatar.group-avatars[data-count="3"],
+.inbox-avatar.group-avatars[data-count="4"] { grid-template-columns:repeat(4, 1fr); grid-auto-rows:18px; gap:2px; }
+.inbox-avatar.group-avatars[data-count="3"] img:first-child { grid-column:2 / span 2; }
+.inbox-avatar.group-avatars[data-count="3"] img:nth-child(2) { grid-column:1 / span 2; }
+.inbox-avatar.group-avatars[data-count="5"] img:first-child { grid-column:2 / span 2; }
+.inbox-avatar.group-avatars[data-count="5"] img:nth-child(2) { grid-column:4 / span 2; }
+.inbox-avatar.group-avatars[data-count="5"] img:nth-child(3) { grid-column:1 / span 2; }
 .bot-avatar-head { display:block; width:36px; height:36px; transform-origin:50% 75%; }
 .bot-avatar-art { display:block; overflow:visible; }
 .bot-avatar-eyes { transform-box:view-box; }

@@ -125,7 +125,14 @@ export function describeError(error: unknown): string {
 
 let currentBaseUrl = DEFAULT_API_BASE_URL;
 
-const http: AxiosInstance = axios.create({
+/**
+ * 共享 axios 实例
+ *
+ * 导出给同层的 services 复用（如群聊 services/groups.ts），避免每个模块各建
+ * 一个实例导致 baseURL 与错误归一化行为不一致。请求拦截器自动附加的
+ * X-Bot-ID 对群路由无影响——后端把群路由挂在根 r 上，绕开了 BotContext 中间件。
+ */
+export const http: AxiosInstance = axios.create({
   baseURL: DEFAULT_API_BASE_URL,
   timeout: 60000, // LLM 生成较慢，给足超时
   headers: { 'Content-Type': 'application/json' },
@@ -154,7 +161,7 @@ export function getApiBaseUrl(): string {
 }
 
 /** 将前端的 LLMOptions（驼峰）转换为后端 llm.Options（下划线） */
-function toBackendOptions(
+export function toBackendOptions(
   config: ChatRequest['config'],
 ): Record<string, unknown> | undefined {
   if (!config) return undefined;

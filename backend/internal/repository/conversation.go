@@ -60,6 +60,31 @@ func (r *ConversationRepository) Delete(ctx context.Context, id uuid.UUID) error
 	})
 }
 
+// DeleteConversationsForBot 删除某个 Bot 名下的全部对话及其消息
+//
+// 消息与对话之间没有数据库级联约束（AutoMigrate 不生成 OnDelete:CASCADE），
+// 清理必须显式完成。这里不复用单条 Delete：它自带事务，套在外层事务里
+// 会向单连接池再借一条连接并把请求挂死。
+func (r *ConversationRepository) DeleteConversationsForBot(ctx context.Context, bot string) (int, error) {
+	var ids []uuid.UUID
+	if err := r.db.WithContext(ctx).Model(&models.Conversation{}).
+		Where("bot_id = ?", bot).Pluck("id", &ids).Error; err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("conversation_id IN ?", ids).Delete(&models.Message{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("bot_id = ?", bot).Delete(&models.Conversation{}).Error
+	}); err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
 // AddMessage 添加消息
 func (r *ConversationRepository) AddMessage(ctx context.Context, message *models.Message) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

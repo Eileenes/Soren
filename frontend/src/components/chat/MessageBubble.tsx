@@ -14,10 +14,13 @@ import { avatarURL, type Bot } from '../../services/agents';
 import { TypingDots } from '../ui/Button';
 import { Tooltip } from '../ui';
 import { MarkdownView } from './MarkdownView';
+import { findMentionHits } from '../../hooks/useGroupChat';
 import type { ChatMessage } from '../../hooks/useChat';
 
 export interface MessageBubbleProps {
   bot?: Bot;
+  /** 群聊发言人的解析池：按 message.speakerBotId 逐条取人 */
+  bots?: Bot[];
   message: ChatMessage;
   /** 是否正在等待响应（最后一条助手消息显示思考动画） */
   pending?: boolean;
@@ -25,6 +28,8 @@ export interface MessageBubbleProps {
   onRegenerate?: (messageId: string) => void;
   /** 是否为最后一条助手消息（只有最后一条允许重新生成） */
   canRegenerate?: boolean;
+  /** 群成员名：用户消息里的 @成员名 会被强调 */
+  mentionNames?: string[];
 }
 
 /** 气泡内的操作按钮 */
@@ -59,17 +64,56 @@ function ActionButton({
   );
 }
 
+/**
+ * 用户气泡里的 @提及
+ *
+ * 纯文字强调（颜色 + 字重），不加背景块也不加描边：行内 border 需要
+ * inline-block，会改变 15px/leading-relaxed 正文框内的行高节奏，把消息流切碎。
+ * 颜色用随主题切换的 rgb(var(--accent)) 而不是写死的 primary-start。
+ */
+function UserContent({ content, mentionNames }: { content: string; mentionNames?: string[] }) {
+  const hits = mentionNames?.length ? findMentionHits(content, mentionNames) : [];
+  if (!hits.length) return <>{content}</>;
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  hits.forEach((hit, index) => {
+    if (hit.start > cursor) parts.push(content.slice(cursor, hit.start));
+    parts.push(
+      <span key={`${hit.start}-${index}`} className="font-semibold text-[rgb(var(--accent))]">
+        {content.slice(hit.start, hit.end)}
+      </span>,
+    );
+    cursor = hit.end;
+  });
+  if (cursor < content.length) parts.push(content.slice(cursor));
+  return <>{parts}</>;
+}
+
 export function MessageBubble({
   bot,
+  bots,
   message,
   pending = false,
   onRegenerate,
   canRegenerate = false,
+  mentionNames,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
   const failed = message.status === 'failed';
+
+  // 群聊里一条发言对应一个 Bot：先按 speakerBotId 解析，解析不到（Bot 已删除
+  // 或被移出群）回退到单聊的 bot prop，名称用后端冗余的 speakerName。
+  const speaker = message.speakerBotId
+    ? bots?.find(item => item.id === message.speakerBotId)
+    : undefined;
+  const display = speaker ?? bot;
+  const speakerLabel = message.speakerName || display?.name || 'Soren';
+  const hasIdentity = Boolean(message.speakerBotId || message.speakerName);
+  // 群聊里若两个字段都为空，退化为无头像的无名气泡，不显示「未知 Bot」；
+  // 单聊的身份来自 bot prop，这两个字段本来就没有，行为保持不变。
+  const showAvatar = bots === undefined || hasIdentity;
 
   const handleCopy = async () => {
     const ok = await copyToClipboard(message.content);
@@ -92,7 +136,7 @@ export function MessageBubble({
               failed && 'opacity-70',
             )}
           >
-            {message.content}
+            <UserContent content={message.content} mentionNames={mentionNames} />
           </div>
 
           <div className="flex items-center gap-1.5 px-1">
@@ -131,24 +175,31 @@ export function MessageBubble({
   return (
     <div className="group/msg flex w-full justify-start gap-3 animate-slide-up">
       {/* 头像 */}
-      <div className="mt-0.5 shrink-0">
-        <div className="rounded-md ring-1 ring-line/70 overflow-hidden">
-          <img src={avatarURL(bot?.avatar || 'soren')} alt={bot?.name || 'Soren'} width={30} height={30} />
+      {showAvatar && (
+        <div className="mt-0.5 shrink-0">
+          <div className="rounded-md ring-1 ring-line/70 overflow-hidden">
+            <img src={avatarURL(display?.avatar || 'soren')} alt={display?.name || 'Soren'} width={30} height={30} />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex min-w-0 max-w-[82%] flex-col gap-1.5">
+        {/* 发言人名：群聊里识别发言者的唯一线索，ink-2 是浅色主题下达 AA 的最浅一档 */}
+        {hasIdentity && (
+          <span className="truncate pl-1 text-xs text-ink-2" title={speakerLabel}>{speakerLabel}</span>
+        )}
+
         {/* 记忆召回提示：让"AI 记得我"这件事变得可见 */}
         {message.memoriesUsed && message.memoriesUsed.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pl-1">
-            <span className="inline-flex items-center gap-1 text-xs text-primary-start">
+            <span className="inline-flex items-center gap-1 text-xs text-[rgb(var(--accent))]">
               <IconBrain size={12} />
               想起了
             </span>
             {message.memoriesUsed.slice(0, 4).map((item, index) => (
               <span
                 key={`${item}-${index}`}
-                className="max-w-[220px] truncate rounded-sm border border-primary-start/25 bg-primary-start/10 px-2 py-0.5 text-xs text-primary-start"
+                className="max-w-[220px] truncate rounded-sm border border-[rgb(var(--accent)/0.25)] bg-[rgb(var(--accent)/0.1)] px-2 py-0.5 text-xs text-[rgb(var(--accent))]"
                 title={item}
               >
                 {item}
@@ -166,7 +217,7 @@ export function MessageBubble({
           {showThinking ? (
             <div className="flex items-center gap-2 py-0.5 text-ink-2">
               <TypingDots />
-              <span className="text-xs text-ink-3">Soren 正在思考…</span>
+              <span className="text-xs text-ink-3">{speakerLabel} 正在思考…</span>
             </div>
           ) : (
             <>

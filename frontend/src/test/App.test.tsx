@@ -53,6 +53,12 @@ const apiMock = vi.hoisted(() => {
     channelList: vi.fn(),
     channelEnable: vi.fn(),
     channelDisable: vi.fn(),
+    groupList: vi.fn(),
+    groupDetail: vi.fn(),
+    groupCreate: vi.fn(),
+    groupRemove: vi.fn(),
+    groupSpeak: vi.fn(),
+    groupCancel: vi.fn(),
     getApiBaseUrl: vi.fn(() => 'http://localhost:8080'),
     setApiBaseUrl: vi.fn(),
   };
@@ -98,6 +104,19 @@ vi.mock('../services/agents', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/agents')>();
   return { ...actual, agentsAPI: { ...actual.agentsAPI, list: apiMock.botList, runs: apiMock.runs, save: apiMock.botSave } };
 });
+
+// 群路由与 Bot 路由不在同一层，单独 mock 避免测试依赖真实后端
+vi.mock('../services/groups', () => ({
+  groupsAPI: {
+    list: apiMock.groupList,
+    detail: apiMock.groupDetail,
+    create: apiMock.groupCreate,
+    remove: apiMock.groupRemove,
+    update: vi.fn(),
+    speak: apiMock.groupSpeak,
+    cancel: apiMock.groupCancel,
+  },
+}));
 vi.mock('../services/connections', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/connections')>();
   return { ...actual, connectionRequest: vi.fn().mockImplementation(async (_method: string, path: string) => path === '/mobile' ? { available: false, enabled: false, online: false, devices: [], pending: null } : []) };
@@ -150,8 +169,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetSettings();
   localStorage.removeItem('soren.active-bot');
+  localStorage.removeItem('soren.active-group');
   apiMock.botList.mockResolvedValue([DEFAULT_BOT]);
   apiMock.runs.mockResolvedValue([]);
+  apiMock.groupList.mockResolvedValue([]);
   localStorage.setItem('soren.getting-started.v1', JSON.stringify({seen: true, active: false, step: 0}));
   document.documentElement.className = 'light';
 });
@@ -333,12 +354,17 @@ describe('应用外壳', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('侧栏加号直接创建 Bot，保存后出现在列表并进入它的聊天', async () => {
+  it('侧栏加号弹出两项菜单，创建 Bot 后出现在列表并进入它的聊天', async () => {
     mockOnlineEmpty();
     const created = { ...DEFAULT_BOT, id: 'writer', name: '写作助手', instructions: '帮助写作', avatar: 'iceberg' };
     apiMock.botSave.mockImplementation(async () => { apiMock.botList.mockResolvedValue([DEFAULT_BOT, created]); return created; });
     const user = userEvent.setup(); render(<App />);
-    await user.click(screen.getByRole('button', { name: '创建 Bot' }));
+    const trigger = screen.getByRole('button', { name: '创建' });
+    await user.click(trigger);
+    const menu = screen.getByRole('menu', { name: '创建' });
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['创建 Bot', '创建群聊']);
+    await user.click(within(menu).getByRole('menuitem', { name: '创建 Bot' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     const editor = screen.getByRole('dialog', { name: '新建 Bot' });
     // Wait for the modal's initial focus before typing; its delayed focus can
     // otherwise interrupt userEvent midway through a field on a fast test run.

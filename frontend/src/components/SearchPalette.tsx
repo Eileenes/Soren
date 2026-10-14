@@ -1,9 +1,10 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal } from './ui';
+import { GroupAvatar } from './GroupAvatar';
 import { IconSearch, IconClose, IconSettings, IconChat, IconPlug, IconBrain, IconDatabase, IconClock } from './icons';
 import { avatarURL, type Bot } from '../services/agents';
 import type { BotInbox } from '../hooks/useBotInbox';
-import type { ViewId } from '../types';
+import type { GroupView, ViewId } from '../types';
 
 const destinations = [
   { view: 'settings', name: '设置：通用', description: '模型、外观、移动端与同步', Icon: IconSettings },
@@ -14,9 +15,11 @@ const destinations = [
   { view: 'shared', name: '共享资料', description: '供 Bot 使用的知识与资料', Icon: IconDatabase },
 ] satisfies { view: ViewId; name: string; description: string; Icon: typeof IconSettings }[];
 
-export function SearchPalette({ bots, inbox, onClose, onSelect, onNavigate }: {
-  bots: Bot[]; inbox: Record<string, BotInbox>; onClose: () => void;
-  onSelect: (botId: string, conversationId?: string) => void; onNavigate: (view: ViewId) => void;
+export function SearchPalette({ bots, inbox, groups, onClose, onSelect, onSelectGroup, onNavigate }: {
+  bots: Bot[]; inbox: Record<string, BotInbox>; groups: GroupView[]; onClose: () => void;
+  onSelect: (botId: string, conversationId?: string) => void;
+  onSelectGroup: (groupId: string) => void;
+  onNavigate: (view: ViewId) => void;
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -34,11 +37,22 @@ export function SearchPalette({ bots, inbox, onClose, onSelect, onNavigate }: {
         if (conversation.title.toLocaleLowerCase().includes(needle)) rows.push({ id: `${bot.id}/${conversation.id}`, title: conversation.title, description: `${bot.name} · 对话记录`, icon: <IconChat size={18} />, select: () => onSelect(bot.id, conversation.id) });
       }
     }
+    // 群聊与 Bot 同级：群名或最近一条预览命中即列出
+    for (const group of groups) {
+      if (needle && !`${group.title} ${group.topic} ${group.lastMessagePreview ?? ''}`.toLocaleLowerCase().includes(needle)) continue;
+      rows.push({
+        id: `group/${group.id}`,
+        title: group.title,
+        description: group.lastMessagePreview || '群聊',
+        icon: <GroupAvatar members={group.members} />,
+        select: () => onSelectGroup(group.id),
+      });
+    }
     for (const destination of destinations) {
       if (!needle || `${destination.name} ${destination.description}`.toLocaleLowerCase().includes(needle)) rows.push({ id: destination.view, title: destination.name, description: destination.description, icon: <destination.Icon size={18} />, select: () => onNavigate(destination.view) });
     }
     return rows;
-  }, [bots, inbox, query, onSelect, onNavigate]);
+  }, [bots, inbox, groups, query, onSelect, onSelectGroup, onNavigate]);
   const selected = Math.min(active, Math.max(0, results.length - 1));
   const choose = (index: number) => { if (results[index]) { onClose(); results[index].select(); } };
   return <Modal open onClose={onClose} title="搜索 Bot、对话和设置" compact size="lg">
