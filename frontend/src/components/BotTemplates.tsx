@@ -1,5 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { Button, Modal, SelectField, TextAreaField, TextField } from "./ui";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Button,
+  IconButton,
+  Modal,
+  SelectField,
+  Spinner,
+  TextAreaField,
+  TextField,
+} from "./ui";
+import { IconClose } from "./icons";
+import { TemplateCard } from "./TemplateCard";
 import { actionLabel, avatarURL, type Bot } from "../services/agents";
 import { describeError } from "../services/api";
 import {
@@ -115,7 +125,6 @@ export function TemplatePublisher({
   const [published, setPublished] = useState<PublishedTemplate | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
   const requestId = useRef(crypto.randomUUID());
   const load = async () => {
     setBusy(true);
@@ -149,60 +158,49 @@ export function TemplatePublisher({
       setBusy(false);
     }
   };
+  if (published)
+    return (
+      <Modal open compact size="sm" ariaLabel="模板已发布" onClose={onClose}>
+        <TemplateCard
+          name={published.config.name}
+          avatar={published.config.avatar}
+          url={published.url}
+          corner={
+            <IconButton label="关闭" onClick={onClose}>
+              <IconClose size={16} />
+            </IconButton>
+          }
+        />
+      </Modal>
+    );
   return (
     <Modal
       open
       onClose={() => {
         if (!busy) onClose();
       }}
-      title={
-        published ? "模板已发布" : templateId ? "发布模板新版" : "创建 Bot 模板"
-      }
+      title={templateId ? "发布模板新版" : "创建 Bot 模板"}
       size="lg"
       footer={
-        published ? (
-          <Button onClick={onClose}>完成</Button>
-        ) : (
-          <>
-            <Button disabled={busy} variant="ghost" onClick={onClose}>
-              取消
-            </Button>
-            <Button
-              variant="primary"
-              disabled={
-                !config || !config.name.trim() || !config.instructions.trim()
-              }
-              loading={busy}
-              onClick={() => void publish()}
-            >
-              确认发布模板
-            </Button>
-          </>
-        )
+        <>
+          <Button disabled={busy} variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            disabled={
+              !config || !config.name.trim() || !config.instructions.trim()
+            }
+            loading={busy}
+            onClick={() => void publish()}
+          >
+            确认发布模板
+          </Button>
+        </>
       }
     >
       <div className="space-y-5">
-        {published ? (
-          <>
-            <p className="text-sm leading-6 text-ink-2">
-              把链接分享给朋友，对方可以导入自己的 Soren。此链接固定为版本{" "}
-              {published.revision}，不会随原 Bot 的编辑改变。
-            </p>
-            <TextField label="模板链接" readOnly value={published.url} />
-            <Button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(published.url);
-                  setCopied(true);
-                } catch {
-                  setError("复制失败，请选中上方链接手动复制。");
-                }
-              }}
-            >
-              {copied ? "已复制链接" : "复制模板链接"}
-            </Button>
-          </>
-        ) : config ? (
+        {config ? (
           <>
             <TextField
               label="模板名称"
@@ -255,7 +253,6 @@ export function MyTemplates({
   const [rows, setRows] = useState<PublishedTemplate[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState<PublishedTemplate | null>(null);
   const [source, setSource] = useState("");
   const [publishing, setPublishing] = useState(false);
@@ -315,105 +312,100 @@ export function MyTemplates({
       }
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-ink-2">
-          管理你在当前模板服务发布的内容。停用或删除会阻止后续下载，已经导入的副本仍然保留。
-        </p>
-        {rows.map((row) => (
-          <article
-            key={row.id}
-            className="space-y-3 rounded-xl border border-line p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-medium">{row.config.name}</h3>
-              <span className="text-xs text-ink-3">
-                v{row.revision} · {row.disabled ? "已停用" : "分享中"}
-              </span>
-            </div>
-            <p className="break-all text-xs text-ink-3">{row.url}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                disabled={busy || row.disabled}
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(row.url);
-                    setNotice("模板链接已复制");
-                  } catch {
-                    setError("复制失败，请手动复制上方链接。");
-                  }
-                }}
-              >
-                复制链接
-              </Button>
-              <Button
-                size="sm"
-                disabled={busy || row.disabled}
-                onClick={() => {
-                  setRevision(row);
-                  setSource("");
-                  setDeleting(null);
-                }}
-              >
-                发布新版
-              </Button>
-              <Button
-                size="sm"
-                disabled={busy}
-                onClick={() => void change(row)}
-              >
-                {row.disabled ? "启用链接" : "停用链接"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => {
-                  setDeleting(row);
-                  setRevision(null);
-                }}
-              >
-                删除模板
-              </Button>
-            </div>
-            {deleting?.id === row.id && (
-              <div className="space-y-3 border-t border-line pt-3">
-                <p className="text-sm text-ink-2">
-                  永久删除此模板的所有发布版本？此操作无法恢复。
+        <div className="template-card-grid">
+          {rows.map((row) => (
+            <TemplateCard
+              key={row.id}
+              name={row.config.name}
+              avatar={row.config.avatar}
+              url={row.url}
+              corner={
+                row.disabled ? (
+                  <span className="template-status">已停用</span>
+                ) : undefined
+              }
+            >
+              <details className="template-management">
+                <summary>管理模板</summary>
+                <p className="mt-3 mb-3 text-xs text-ink-3">
+                  版本 {row.revision} ·{" "}
+                  {row.disabled ? "链接已停用" : "链接可用"}
                 </p>
-                <Button
-                  variant="danger"
-                  loading={busy}
-                  onClick={() => void change(row, true)}
-                >
-                  确认删除模板
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => setDeleting(null)}
-                >
-                  取消
-                </Button>
-              </div>
-            )}
-            {revision?.id === row.id && (
-              <div className="space-y-3 border-t border-line pt-3">
-                <SelectField
-                  label="新版使用哪个 Bot 的配置"
-                  value={source}
-                  onChange={setSource}
-                  options={[
-                    { value: "", label: "请选择来源 Bot" },
-                    ...bots.map((b) => ({ value: b.id, label: b.name })),
-                  ]}
-                />
-                <Button disabled={!source} onClick={() => setPublishing(true)}>
-                  预览新版
-                </Button>
-              </div>
-            )}
-          </article>
-        ))}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy || row.disabled}
+                    onClick={() => {
+                      setRevision(row);
+                      setSource("");
+                      setDeleting(null);
+                    }}
+                  >
+                    发布新版
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void change(row)}
+                  >
+                    {row.disabled ? "启用链接" : "停用链接"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => {
+                      setDeleting(row);
+                      setRevision(null);
+                    }}
+                  >
+                    删除模板
+                  </Button>
+                </div>
+                {deleting?.id === row.id && (
+                  <div className="space-y-3 border-t border-line pt-3">
+                    <p className="text-sm text-ink-2">
+                      永久删除此模板的所有发布版本？此操作无法恢复。
+                    </p>
+                    <Button
+                      variant="danger"
+                      loading={busy}
+                      onClick={() => void change(row, true)}
+                    >
+                      确认删除模板
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => setDeleting(null)}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                )}
+                {revision?.id === row.id && (
+                  <div className="space-y-3 border-t border-line pt-3">
+                    <SelectField
+                      label="新版使用哪个 Bot 的配置"
+                      value={source}
+                      onChange={setSource}
+                      options={[
+                        { value: "", label: "请选择来源 Bot" },
+                        ...bots.map((b) => ({ value: b.id, label: b.name })),
+                      ]}
+                    />
+                    <Button
+                      disabled={!source}
+                      onClick={() => setPublishing(true)}
+                    >
+                      预览新版
+                    </Button>
+                  </div>
+                )}
+              </details>
+            </TemplateCard>
+          ))}
+        </div>
         {!rows.length && !busy && !error && (
           <p className="py-8 text-center text-sm text-ink-3">
             还没有发布模板。从任意 Bot 的「创建模板」开始。
@@ -422,11 +414,6 @@ export function MyTemplates({
         {busy && (
           <p role="status" className="text-sm text-ink-3">
             正在加载…
-          </p>
-        )}
-        {notice && (
-          <p role="status" className="text-sm text-ink-2">
-            {notice}
           </p>
         )}
         {error && (
@@ -453,119 +440,168 @@ function ImportDialog({
 }) {
   const [link, setLink] = useState(initialLink);
   const [preview, setPreview] = useState<TemplatePreview | null>(null);
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(Boolean(initialLink));
   const [error, setError] = useState("");
-  const load = async () => {
+  const generation = useRef(0);
+  const importing = useRef(false);
+  const load = useCallback(async (value: string) => {
+    const current = ++generation.current;
     setBusy(true);
     setError("");
     setPreview(null);
     try {
-      const result = await templatesAPI.preview(link);
-      setPreview(result);
-      setName(result.published.config.name);
+      const result = await templatesAPI.preview(value);
+      if (current === generation.current) setPreview(result);
     } catch (e) {
-      setError(describeError(e));
+      if (current === generation.current) setError(describeError(e));
     } finally {
-      setBusy(false);
+      if (current === generation.current) setBusy(false);
     }
+  }, []);
+  // Opening a link loads its card. Only the import button creates a local Bot.
+  useEffect(() => {
+    if (initialLink) void load(initialLink);
+    return () => {
+      generation.current++;
+    };
+  }, [initialLink, load]);
+  const close = () => {
+    if (!importing.current) onClose();
   };
-  // Receiving a link opens this dialog only. Fetching and importing remain explicit.
   const accept = async () => {
-    if (!preview) return;
+    if (!preview || importing.current) return;
+    importing.current = true;
     setBusy(true);
     setError("");
     try {
-      const bot = await templatesAPI.import(preview.previewId, name);
+      const bot = await templatesAPI.import(
+        preview.previewId,
+        preview.published.config.name,
+      );
       onImported(bot);
       onClose();
     } catch (e) {
       setError(describeError(e));
     } finally {
+      importing.current = false;
       setBusy(false);
     }
   };
   return (
+    <Modal open compact size="sm" ariaLabel="导入 Bot 模板" onClose={close}>
+      {preview ? (
+        <TemplateCard
+          name={preview.published.config.name}
+          avatar={preview.published.config.avatar}
+          url={preview.published.url}
+          corner={
+            <IconButton label="关闭" disabled={busy} onClick={close}>
+              <IconClose size={16} />
+            </IconButton>
+          }
+        >
+          {preview.existingBotId && (
+            <p role="status" className="mb-4 text-xs leading-5 text-ink-3">
+              已导入过这个模板，再次导入将创建独立副本。
+            </p>
+          )}
+          <Button
+            variant="primary"
+            block
+            loading={busy}
+            onClick={() => void accept()}
+          >
+            {preview.existingBotId ? "再导入一份" : "导入到我的 Soren"}
+          </Button>
+          {error && (
+            <p role="alert" className="bot-error mt-3">
+              {error}
+            </p>
+          )}
+        </TemplateCard>
+      ) : (
+        <div className="template-import-entry">
+          <div className="template-import-heading">
+            <h2>导入 Bot 模板</h2>
+            <IconButton label="关闭" onClick={close}>
+              <IconClose size={16} />
+            </IconButton>
+          </div>
+          {busy ? (
+            <div role="status" className="template-card-loading">
+              <Spinner size={24} />
+              <p>正在打开 Bot 卡片…</p>
+            </div>
+          ) : (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (link.trim()) void load(link.trim());
+              }}
+              className="space-y-4"
+            >
+              <TextField
+                label="模板链接"
+                value={link}
+                onChange={(event) => {
+                  setLink(event.target.value);
+                  setError("");
+                }}
+                placeholder="粘贴朋友分享的模板链接"
+              />
+              {error && (
+                <p role="alert" className="bot-error">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" block disabled={!link.trim()}>
+                打开模板卡片
+              </Button>
+            </form>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export function TemplateBotPicker({
+  bots,
+  onSelect,
+  onClose,
+}: {
+  bots: Bot[];
+  onSelect: (bot: Bot) => void;
+  onClose: () => void;
+}) {
+  const available = bots.filter((bot) => bot.status !== "archived");
+  return (
     <Modal
       open
-      title="导入 Bot 模板"
-      size="lg"
-      onClose={() => {
-        if (!busy) onClose();
-      }}
-      footer={
-        <>
-          <Button disabled={busy} variant="ghost" onClick={onClose}>
-            取消
-          </Button>
-          {preview ? (
-            <Button
-              variant="primary"
-              loading={busy}
-              disabled={!name.trim()}
-              onClick={() => void accept()}
-            >
-              {preview.existingBotId ? "再创建一份副本" : "确认导入 Bot"}
-            </Button>
-          ) : (
-            <Button
-              loading={busy}
-              disabled={!link.trim()}
-              onClick={() => void load()}
-            >
-              预览模板
-            </Button>
-          )}
-        </>
-      }
+      title="创建 Bot 模板"
+      description="选择一个 Bot，将它的配置分享给朋友。"
+      onClose={onClose}
     >
-      <div className="space-y-5">
-        <TextField
-          label="模板链接"
-          value={link}
-          disabled={busy}
-          onChange={(e) => {
-            setLink(e.target.value);
-            setPreview(null);
-            setError("");
-          }}
-          placeholder="粘贴朋友分享的模板链接"
-        />
-        {preview && (
-          <>
-            <p className="text-xs text-ink-3">
-              由 {preview.published.publisher} 发布 · v
-              {preview.published.revision}
-            </p>
-            {preview.existingBotId && (
-              <p role="status" className="text-sm text-ink-2">
-                你已导入过这个版本，继续会创建另一份独立副本。
-              </p>
-            )}
-            <TemplateContents config={preview.published.config} />
-            <TextField
-              label="导入后的 Bot 名称"
-              maxLength={40}
-              value={name}
-              disabled={busy}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <p className="text-xs leading-6 text-ink-3">
-              使用你的默认模型，初始对话和记忆为空。协作与全部工具动作默认关闭，可在「配置
-              Bot」中逐项开启。
-            </p>
-          </>
-        )}
-        {!preview && (
-          <p className="text-sm leading-6 text-ink-2">
-            请先在「设置 → Bot
-            模板服务」配置与分享者相同的服务地址。我们会先展示配置，确认后才创建
-            Bot。
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="bot-error">
-            {error}
+      <div className="template-bot-picker">
+        {available.map((bot) => (
+          <button
+            key={bot.id}
+            disabled={!bot.instructions.trim()}
+            onClick={() => onSelect(bot)}
+          >
+            <img src={avatarURL(bot.avatar)} alt="" width={48} height={48} />
+            <span>
+              <strong>{bot.name}</strong>
+              <small>
+                {bot.instructions.trim() ? "创建模板" : "请先在配置中填写职责"}
+              </small>
+            </span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        ))}
+        {!available.length && (
+          <p className="py-8 text-sm text-ink-3">
+            先新建一个 Bot，再创建分享模板。
           </p>
         )}
       </div>
@@ -582,17 +618,22 @@ export function TemplateImportHost({
     null,
   );
   const queue = useRef<string[]>([]);
-  const active = useRef(false);
+  const active = useRef<string | null>(null);
+  const sequence = useRef(0);
   useEffect(() => {
     const receive = (link: string) => {
       if (link.length > 2048) return;
-      if (active.current) {
-        if (!queue.current.includes(link) && queue.current.length < 10)
+      if (active.current !== null) {
+        if (
+          active.current !== link &&
+          !queue.current.includes(link) &&
+          queue.current.length < 10
+        )
           queue.current.push(link);
         return;
       }
-      active.current = true;
-      setPending({ link, key: Date.now() });
+      active.current = link;
+      setPending({ link, key: ++sequence.current });
     };
     const custom = (event: Event) =>
       receive(
@@ -641,8 +682,10 @@ export function TemplateImportHost({
       onImported={onImported}
       onClose={() => {
         const next = queue.current.shift();
-        active.current = next !== undefined;
-        setPending(next === undefined ? null : { link: next, key: Date.now() });
+        active.current = next ?? null;
+        setPending(
+          next === undefined ? null : { link: next, key: ++sequence.current },
+        );
       }}
     />
   );

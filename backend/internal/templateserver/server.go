@@ -8,17 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/soren/backend/internal/botconfig"
 	"github.com/soren/backend/internal/bottemplate"
 	"golang.org/x/time/rate"
 	"gorm.io/gorm"
@@ -96,6 +93,8 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("DELETE /api/templates/{id}", s.auth(s.manage))
 	m.HandleFunc("GET /api/templates/{id}/versions/{revision}", s.fetch)
 	m.HandleFunc("GET /t/{id}/v/{revision}", s.preview)
+	m.HandleFunc("GET /assets/import.js", serveImportScript)
+	m.HandleFunc("GET /assets/avatars/{name}", serveAvatar)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -301,29 +300,3 @@ func (s *Server) fetch(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, v)
 }
-func (s *Server) preview(w http.ResponseWriter, r *http.Request) {
-	v, e := s.load(r)
-	if e != nil {
-		http.Error(w, "模板不存在、已停用或已删除。请联系分享者。", 404)
-		return
-	}
-	link := "soren://templates/import?" + url.Values{"id": {v.ID}, "revision": {strconv.Itoa(v.Revision)}, "service": {s.origin}}.Encode()
-	data := struct {
-		bottemplate.Published
-		DeepLink template.URL
-		Service  string
-	}{v, template.URL(link), s.origin}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = previewPage.Execute(w, data)
-}
-
-var previewPage = template.Must(template.New("preview").Funcs(template.FuncMap{"actionLabel": botconfig.ActionLabel}).Parse(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Config.Name}} · Soren Bot 模板</title><style>
-:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:#f5f4ef;color:#242821;font:16px/1.8 ui-sans-serif,system-ui,sans-serif}main{max-width:760px;margin:64px auto;padding:0 28px 64px}.brand{font-size:13px;letter-spacing:.2em;color:#65715b}h1{font-size:42px;line-height:1.25;margin:28px 0 16px;overflow-wrap:anywhere}h2{font-size:15px;margin:0 0 12px}.meta{font-size:13px;color:#65715b}.intro{font-size:18px;white-space:pre-wrap;overflow-wrap:anywhere}section{border-top:1px solid #d8dcd1;padding:24px 0}pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.action{display:inline-block;background:#354d3d;color:#fff;padding:13px 28px;border-radius:12px;text-decoration:none;margin:16px 0}.hint{font-size:13px;color:#596450;overflow-wrap:anywhere}li{overflow-wrap:anywhere}code{overflow-wrap:anywhere}a:focus-visible{outline:3px solid #758b3d;outline-offset:4px}@media(prefers-color-scheme:dark){body{background:#171b17;color:#e5e9df}.meta,.brand,.hint{color:#aebca5}section{border-color:#354035}.action{background:#c6ddad;color:#182314}}@media(max-width:600px){main{margin-top:32px}h1{font-size:32px}}</style><main>
-<div class="brand">SOREN / BOT TEMPLATE</div><h1>{{.Config.Name}}</h1><p class="intro">{{.Config.Description}}</p><p class="meta">由 {{.Publisher}} 发布 · 版本 {{.Revision}}</p><a class="action" href="{{.DeepLink}}">导入 Soren ↗</a><p class="hint">导入后成为你的独立 Bot，使用你自己的模型与工具账号。打开应用后仍需预览并确认。</p>
-<section><h2>职责</h2><pre>{{.Config.Instructions}}</pre></section>
-{{if .Config.Definition.CanDo}}<section><h2>负责事项</h2><ul>{{range .Config.Definition.CanDo}}<li>{{.}}</li>{{end}}</ul></section>{{end}}
-{{if .Config.Definition.CannotDo}}<section><h2>不处理的事项</h2><ul>{{range .Config.Definition.CannotDo}}<li>{{.}}</li>{{end}}</ul></section>{{end}}
-{{if .Config.Definition.Workflow}}<section><h2>工作方式</h2><pre>{{.Config.Definition.Workflow}}</pre></section>{{end}}
-{{if .Config.Definition.Output}}<section><h2>输出标准</h2><pre>{{.Config.Definition.Output}}</pre></section>{{end}}
-{{if .Config.RequiredCapabilities}}<section><h2>需要自行配置的能力</h2><ul>{{range .Config.RequiredCapabilities}}<li>{{actionLabel .}}</li>{{end}}</ul></section>{{end}}
-<section class="hint"><h2>第一次使用</h2>请向服务管理员获取并安装 Soren，在「设置 → Bot 模板服务」填入 <code>{{.Service}}</code>，再点击导入。若无法唤起应用，可在「我的 Bot → 导入模板」粘贴本页链接。<p>链接可被转发。模板不包含作者的账号、连接授权、聊天记录或私人记忆。</p></section></main></html>`))

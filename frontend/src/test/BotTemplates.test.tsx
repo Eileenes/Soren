@@ -64,57 +64,106 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 describe("Bot template flows", () => {
-  it("opens a received link without downloading or creating a Bot until explicit actions", async () => {
+  it("opens a received link as a card and creates a Bot only after import", async () => {
     vi.mocked(templatesAPI.preview).mockResolvedValue({
       previewId: "preview",
       service: "https://templates.example",
       published,
       expiresAt: "",
-      existingBotId: "existing",
     });
     vi.mocked(templatesAPI.import).mockResolvedValue({
       ...DEFAULT_BOT,
       id: "imported",
-      name: "我的视频助手",
+      name: config.name,
     });
     const onImported = vi.fn();
     render(<TemplateImportHost onImported={onImported} />);
     act(() => openTemplateImport(published.url));
+    await screen.findByRole("button", { name: "导入到我的 Soren" });
+    expect(templatesAPI.preview).toHaveBeenCalledWith(published.url);
+    expect(
+      screen.getByRole("heading", { name: config.name }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("模板链接")).toHaveValue(published.url);
-    expect(templatesAPI.preview).not.toHaveBeenCalled();
+    expect(screen.queryByText("不发邮件")).not.toBeInTheDocument();
     expect(templatesAPI.import).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText("预览模板"));
-    await screen.findByText("不发邮件");
-    expect(templatesAPI.import).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("导入后的 Bot 名称"), {
-      target: { value: "我的视频助手" },
-    });
-    fireEvent.click(screen.getByText("再创建一份副本"));
-    await waitFor(() =>
-      expect(templatesAPI.import).toHaveBeenCalledWith(
-        "preview",
-        "我的视频助手",
-      ),
-    );
+    act(() => openTemplateImport(published.url));
+    fireEvent.click(screen.getByRole("button", { name: "导入到我的 Soren" }));
     await waitFor(() => expect(onImported).toHaveBeenCalledOnce());
+    expect(templatesAPI.import).toHaveBeenCalledWith("preview", config.name);
+    expect(templatesAPI.preview).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
-  it("changing a link invalidates the preview and cancel does not import", async () => {
+  it("warns about existing copies without importing on close", async () => {
     vi.mocked(templatesAPI.preview).mockResolvedValue({
       previewId: "preview",
       service: "",
       published,
       expiresAt: "",
+      existingBotId: "existing",
     });
     render(<TemplateImportHost onImported={vi.fn()} />);
     act(() => openTemplateImport(published.url));
-    fireEvent.click(screen.getByText("预览模板"));
-    await screen.findByText("确认导入 Bot");
-    fireEvent.change(screen.getByLabelText("模板链接"), {
-      target: { value: "https://other.example/t/123/v/2" },
-    });
-    expect(screen.queryByText("确认导入 Bot")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("取消"));
+    await screen.findByRole("button", { name: "再导入一份" });
+    expect(screen.getByText(/已导入过这个模板/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
     expect(templatesAPI.import).not.toHaveBeenCalled();
+  });
+  it("allows manual paste and a retry after a failed preview", async () => {
+    vi.mocked(templatesAPI.preview)
+      .mockRejectedValueOnce(new Error("无法连接模板服务"))
+      .mockResolvedValueOnce({
+        previewId: "preview",
+        service: "",
+        published,
+        expiresAt: "",
+      });
+    render(<TemplateImportHost onImported={vi.fn()} />);
+    act(() => openTemplateImport());
+    expect(templatesAPI.preview).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("模板链接"), {
+      target: { value: published.url },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "打开模板卡片" }));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("模板链接")).toHaveValue(published.url);
+    fireEvent.click(screen.getByRole("button", { name: "打开模板卡片" }));
+    await screen.findByRole("button", { name: "导入到我的 Soren" });
+    expect(templatesAPI.import).not.toHaveBeenCalled();
+  });
+  it("discards a late preview after closing and opening another link", async () => {
+    let resolveFirst!: (
+      value: Awaited<ReturnType<typeof templatesAPI.preview>>,
+    ) => void;
+    vi.mocked(templatesAPI.preview)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        previewId: "second",
+        service: "",
+        published: { ...published, config: { ...config, name: "第二个 Bot" } },
+        expiresAt: "",
+      });
+    render(<TemplateImportHost onImported={vi.fn()} />);
+    act(() => openTemplateImport(published.url));
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    act(() => openTemplateImport(published.url + "2"));
+    await screen.findByRole("heading", { name: "第二个 Bot" });
+    await act(async () =>
+      resolveFirst({
+        previewId: "first",
+        service: "",
+        published,
+        expiresAt: "",
+      }),
+    );
+    expect(
+      screen.queryByRole("heading", { name: config.name }),
+    ).not.toBeInTheDocument();
   });
   it("previews only the exported configuration and retains the idempotency key on retry", async () => {
     vi.mocked(templatesAPI.export).mockResolvedValue(config);
@@ -128,7 +177,8 @@ describe("Bot template flows", () => {
     await screen.findByRole("alert");
     const requestId = vi.mocked(templatesAPI.publish).mock.calls[0][1];
     fireEvent.click(screen.getByText("确认发布模板"));
-    await screen.findByText("模板已发布");
+    await screen.findByRole("dialog", { name: "模板已发布" });
+    expect(screen.queryByText("不发邮件")).not.toBeInTheDocument();
     expect(vi.mocked(templatesAPI.publish).mock.calls[1][1]).toBe(requestId);
     expect(screen.getByLabelText("模板链接")).toHaveValue(published.url);
   });

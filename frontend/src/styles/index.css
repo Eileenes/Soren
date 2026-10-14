@@ -789,11 +789,6 @@ button:disabled { cursor: not-allowed; }
 .sidebar-profile:hover,.sidebar-profile.selected { background:rgb(var(--soren-surface-4)/.65); color:rgb(var(--soren-ink-1)); }
 .profile-avatar { width:30px; height:30px; background:none; border:0; border-radius:0; }
 .profile-avatar img { display:block; }
-.connection-icon { display:grid; place-items:center; width:24px; height:28px; color:rgb(var(--soren-ink-3)); }
-.connection-icon.online { color: rgb(var(--soren-ink-1)); }
-.connection-icon.offline { color: rgb(var(--soren-ink-3)); }
-.connection-icon.connecting svg,.connection-icon.unknown svg { animation:spin 1.5s linear infinite; }
-@media(prefers-reduced-motion:reduce) { .connection-icon svg { animation:none!important; } }
 
 @media(max-width:540px) { .theme-option > span { padding-left:0; padding-right:0; font-size:11px; gap:2px; } .theme-option > span > span { gap:3px; } .theme-option > span > span svg { display:none; } }
 
@@ -1032,3 +1027,37 @@ button:disabled { cursor: not-allowed; }
 .bot-introduction { display: flex; align-items: flex-start; gap: 24px; width: min(100%, 620px); margin: 64px auto; padding: 24px 8px; }
 .bot-introduction > img { flex: 0 0 64px; object-fit: contain; }
 @media (max-width: 640px) { .bot-introduction { flex-direction: column; gap: 16px; margin: 24px auto; } }
+
+/* Portable Bot cards: a quiet frame around the Bot's identity and share link. */
+.template-card { position:relative; min-width:0; padding:34px 24px 24px; border:1px solid rgb(var(--soren-line)); border-radius:14px; background:rgb(var(--soren-surface-1)); box-shadow:0 8px 24px rgb(0 0 0 / .025); }
+.template-card-corner { position:absolute; top:10px; right:10px; }
+.template-card-identity { display:flex; flex-direction:column; align-items:center; gap:22px; padding:18px 0 30px; }
+.template-card-avatar { display:grid; place-items:center; width:112px; height:112px; border:1px solid rgb(var(--soren-line-subtle)); border-radius:32px; background:linear-gradient(145deg,rgb(var(--soren-surface-1)),rgb(var(--soren-surface-3))); box-shadow:0 8px 18px rgb(0 0 0 / .035),inset 0 1px 0 rgb(var(--soren-surface-1)); transform:rotate(-5deg); }
+.template-card-avatar img { object-fit:contain; transform:rotate(5deg); filter:drop-shadow(0 4px 4px rgb(0 0 0 / .06)); }
+.template-card-identity h2 { margin:0; max-width:100%; font-size:23px; font-weight:600; letter-spacing:-.04em; line-height:1.45; text-align:center; overflow-wrap:anywhere; }
+.template-card-link { display:flex; align-items:center; gap:6px; min-width:0; padding:5px 5px 5px 12px; border:1px solid rgb(var(--soren-line-subtle)); border-radius:10px; background:rgb(var(--soren-surface-2)); }
+.template-card-link input { width:100%; min-width:0; background:transparent; border:0; color:rgb(var(--soren-ink-3)); font-size:11px; font-family:ui-monospace,'SFMono-Regular',monospace; text-overflow:ellipsis; outline-offset:2px; }
+.template-card-link button { flex-shrink:0; }
+.template-card-actions { margin-top:18px; }
+.template-card-actions > .control-button { min-height:42px; border-radius:10px; }
+.template-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
+.template-card-grid .template-card { padding:26px 16px 18px; }
+.template-card-grid .template-card-identity h2 { font-size:19px; }
+.template-status { display:block; padding:4px 8px; border-radius:6px; background:rgb(var(--soren-surface-3)); color:rgb(var(--soren-ink-3)); font-size:10px; }
+.template-management summary { cursor:pointer; font-size:11px; color:rgb(var(--soren-ink-3)); text-align:center; list-style:none; }
+.template-management summary::-webkit-details-marker { display:none; }
+.template-management summary::after { content:' +'; margin-left:5px; }
+.template-management[open] summary::after { content:' −'; }
+.template-import-entry { padding:16px; }
+.template-import-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:20px; }
+.template-import-heading h2 { font-size:15px; font-weight:600; }
+.template-card-loading { min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; font-size:12px; color:rgb(var(--soren-ink-3)); }
+.template-bot-picker { display:grid; gap:8px; }
+.template-bot-picker > button { display:flex; align-items:center; gap:16px; padding:14px; border:1px solid rgb(var(--soren-line-subtle)); border-radius:12px; text-align:left; transition:background .15s,border-color .15s; }
+.template-bot-picker > button:hover:not(:disabled) { background:rgb(var(--soren-surface-2)); border-color:rgb(var(--soren-line-strong)); }
+.template-bot-picker > button:disabled { opacity:.5; cursor:not-allowed; }
+.template-bot-picker img { flex-shrink:0; }
+.template-bot-picker > button > span:first-of-type { display:flex; flex:1; min-width:0; flex-direction:column; gap:5px; }
+.template-bot-picker strong { font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.template-bot-picker small { font-size:11px; color:rgb(var(--soren-ink-3)); }
+@media(max-width:540px) { .template-card-grid { grid-template-columns:1fr; } .template-card { padding:26px 18px 18px; } }

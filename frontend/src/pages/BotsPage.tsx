@@ -3,7 +3,11 @@ import { PageContainer, PageHeading } from "../components/layout/Shell";
 import { Button } from "../components/ui";
 import { IconPlus } from "../components/icons";
 import { avatarURL, type Bot } from "../services/agents";
-import { MyTemplates, TemplatePublisher } from "../components/BotTemplates";
+import {
+  MyTemplates,
+  TemplateBotPicker,
+  TemplatePublisher,
+} from "../components/BotTemplates";
 import { openTemplateImport } from "../services/templates";
 import { BotEditor, blankBot } from "../components/BotEditor";
 export function BotsPage({
@@ -19,6 +23,7 @@ export function BotsPage({
   onReload: () => Promise<void>;
   error: string | null;
 }) {
+  const [pickingTemplate, setPickingTemplate] = useState(false);
   const [sharing, setSharing] = useState<Bot | null>(null);
   const [templates, setTemplates] = useState(false);
   const [draft, setDraft] = useState<Bot | null>(null);
@@ -31,6 +36,9 @@ export function BotsPage({
         title="我的 Bot"
         actions={
           <>
+            <Button variant="primary" onClick={() => setPickingTemplate(true)}>
+              创建 Bot 模板
+            </Button>
             <Button onClick={() => openTemplateImport()}>导入模板</Button>
             <Button onClick={() => setTemplates(true)}>我的模板</Button>
             <Button
@@ -146,6 +154,16 @@ export function BotsPage({
       </div>
       {showArchive && !bots.some((b) => b.status === "archived") && (
         <p className="py-20 text-center text-ink-3 text-sm">暂无归档</p>
+      )}
+      {pickingTemplate && (
+        <TemplateBotPicker
+          bots={bots}
+          onClose={() => setPickingTemplate(false)}
+          onSelect={(bot) => {
+            setPickingTemplate(false);
+            setSharing(bot);
+          }}
+        />
       )}
       {sharing && (
         <TemplatePublisher

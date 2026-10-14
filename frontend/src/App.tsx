@@ -370,7 +370,6 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         <TitleBar
           onOpenGuide={() => guide.setOpen(true)}
           title={view === 'chat' ? (isGroup ? activeGroup?.title ?? '群聊' : activeBot.name) : VIEW_TITLES[view]}
-          connection={health.state}
           settingsOpen={view !== 'chat'}
           onOpenMenu={() => setMobileOpen(true)}
         />

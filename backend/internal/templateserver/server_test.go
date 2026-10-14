@@ -72,6 +72,27 @@ func TestOwnershipValidationAndPreviewEscaping(t *testing.T) {
 	if w.Header().Get("Cache-Control") != "no-store" || w.Header().Get("Content-Security-Policy") == "" {
 		t.Fatal("missing preview protections")
 	}
+	if !strings.Contains(w.Body.String(), `src="/assets/avatars/soren.svg"`) || !strings.Contains(w.Body.String(), `src="/assets/import.js"`) || !strings.Contains(w.Body.String(), published.URL) {
+		t.Fatal("preview card is missing its avatar, link or app launcher")
+	}
+	if strings.Contains(w.Body.String(), "&lt;img src=x") {
+		t.Fatal("preview should show a card, not the full Bot instructions")
+	}
+	if !strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'self';") {
+		t.Fatal("launcher must be restricted to the service's own static script")
+	}
+	for name := range avatarFiles {
+		asset := call("GET", "/assets/avatars/"+name, "", nil)
+		if asset.Code != 200 || !strings.HasPrefix(asset.Header().Get("Content-Type"), "image/") || asset.Body.Len() == 0 {
+			t.Fatal("missing embedded avatar", name)
+		}
+	}
+	if asset := call("GET", "/assets/avatars/unknown.png", "", nil); asset.Code != 404 {
+		t.Fatal("unexpected asset was served")
+	}
+	if asset := call("GET", "/assets/import.js", "", nil); asset.Code != 200 || asset.Header().Get("Content-Type") != "text/javascript; charset=utf-8" {
+		t.Fatal("missing app launcher")
+	}
 	bad := map[string]any{"requestId": uuid.NewString(), "config": map[string]any{"format": bottemplate.Format, "schemaVersion": 1, "name": "test", "instructions": "test", "apiKey": "secret"}}
 	if w = call("POST", "/api/templates", alice, bad); w.Code != 400 {
 		t.Fatal("unknown secret field accepted")
