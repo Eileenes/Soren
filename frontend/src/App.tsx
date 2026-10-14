@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { GettingStarted, useGettingStarted } from './components/GettingStarted';
 import { SettingsNav } from './components/layout/SettingsNav';
 import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
-import { TemplateImportHost } from './components/BotTemplates';
+import { TemplateImportHost, TemplatePublisher } from './components/BotTemplates';
 import { BotEditor, blankBot } from './components/BotEditor';
 import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { RenameChatDialog } from './components/RenameChatDialog';
@@ -44,7 +44,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { BotsPage } from './pages/BotsPage';
 import { TasksPage } from './pages/TasksPage';
 import { SharedNotesPage } from './pages/SharedNotesPage';
-import { agentsAPI, copyBotDraft, DEFAULT_BOT, type Bot } from './services/agents';
+import { agentsAPI, DEFAULT_BOT, type Bot } from './services/agents';
 import { groupsAPI } from './services/groups';
 import { setActiveBotID } from './services/botScope';
 import { describeError, normalizeError } from './services/api';
@@ -77,6 +77,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeSidebar = useCallback(() => setMobileOpen(false), []);
   const [newBot, setNewBot] = useState<Bot | null>(null);
+  const [sharingBotId, setSharingBotId] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState(false);
   const [editBot, setEditBot] = useState<Bot | null>(null);
   const [editGroup, setEditGroup] = useState<GroupView | null>(null);
@@ -296,10 +297,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         onCollapsedChange={onSidebarCollapsedChange}
         onPinBot={(id, pinned) => { void handlePinBot(id, pinned); }}
         onConfigureBot={id => setEditBot(bots.find(bot => bot.id === id) ?? null)}
-        onCopyBot={id => {
-          const bot = bots.find(item => item.id === id);
-          if (bot) setNewBot(copyBotDraft(bot));
-        }}
+        onCopyBot={setSharingBotId}
         onConfigureGroup={id => setEditGroup(groups.find(group => group.id === id) ?? null)}
         onRenameBot={id => setRenameBot(bots.find(bot => bot.id === id) ?? null)}
         onDeleteBot={id => { setDeleteBotError(''); setDeleteBot(bots.find(bot => bot.id === id) ?? null); }}
@@ -329,6 +327,8 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
       {searchOpen && <SearchPalette bots={bots} inbox={inbox} groups={groups} onClose={() => setSearchOpen(false)} onSelect={(botId, id) => { if (isGroup || botId !== activeBot.id) onSelectBot(botId, id); else { const target = id || inbox[botId]?.latestId; if (target && target !== chat.conversationId) handleSelectConversation(target); setView('chat'); } }} onSelectGroup={id => { onSelectGroup(id); setView('chat'); }} onNavigate={setView} />}
 
       {newBot && <BotEditor initial={newBot} bots={bots} onClose={() => setNewBot(null)} onSaved={async bot => { setNewBot(null); onBotCreated(bot); setView('chat'); }} />}
+
+      {sharingBotId && <TemplatePublisher key={sharingBotId} botId={sharingBotId} onClose={() => setSharingBotId(null)} />}
 
       {editBot && <BotEditor initial={editBot} bots={bots} onClose={() => setEditBot(null)} onSaved={async bot => { onBotUpdated(bot); setEditBot(null); await Promise.all([onReloadBots(), onReloadGroups()]); }} />}
       {editGroup && <CreateGroupDialog key={editGroup.id} open initial={editGroup} bots={bots.filter(bot => bot.status !== 'archived')} onClose={() => setEditGroup(null)} onCreate={async input => {

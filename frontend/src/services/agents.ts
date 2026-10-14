@@ -10,19 +10,6 @@ export interface BotAction { key: string; name: string; approval: boolean; }
 export interface Bot { definition?: BotDefinition; policy?: BotPolicy | null; templateSource?: { service: string; id: string; revision: number; digest: string }; id: string; name: string; avatar: string; instructions: string; model: string; memoryEnabled: boolean; collaborationEnabled: boolean; collaborationAll?: boolean; collaborators: string[]; status: 'active' | 'paused' | 'archived'; version: number; pinned?: boolean; pinnedAt?: string; createdAt?: string; updatedAt?: string; }
 export const DEFAULT_BOT: Bot = { id: 'soren', name: 'Soren', avatar: 'soren', instructions: '', model: '', memoryEnabled: true, collaborationEnabled: false, collaborators: [], status: 'active', version: 1 };
 
-/** 复制配置为新 Bot 草稿，不携带身份、模板来源或协作关系。 */
-export function copyBotDraft(bot: Bot): Bot {
- return {
-  id: '', name: Array.from(bot.name).slice(0, 37).join('') + ' 副本',
-  avatar: bot.avatar, instructions: bot.instructions, model: bot.model,
-  memoryEnabled: bot.memoryEnabled,
-  definition: bot.definition ? { ...bot.definition, canDo: [...(bot.definition.canDo ?? [])], cannotDo: [...(bot.definition.cannotDo ?? [])] } : undefined,
-  policy: bot.policy ? { actions: { ...bot.policy.actions } } : bot.policy,
-  collaborationEnabled: false, collaborationAll: false, collaborators: [],
-  status: 'active', version: 1,
- };
-}
-
 export interface SharedNote { id: string; title: string; content: string; allowedBots: string[]; version: number; }
 export interface RunStep { botId: string; name: string; avatar: string; status: string; output: string; }
 export interface Run { id: string; ownerBotId: string; goal: string; status: string; steps: RunStep[]; result: string; error: string; demo: boolean; createdAt: string; }

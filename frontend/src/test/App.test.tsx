@@ -46,6 +46,8 @@ const apiMock = vi.hoisted(() => {
     botList: vi.fn(),
     botSave: vi.fn(),
     botUpdateNavigation: vi.fn(),
+    templateExport: vi.fn(),
+    templatePublish: vi.fn(),
     runs: vi.fn(),
     memoryList: vi.fn(),
     memorySearch: vi.fn(),
@@ -104,6 +106,11 @@ vi.mock('../services/api', () => {
 vi.mock('../services/agents', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/agents')>();
   return { ...actual, agentsAPI: { ...actual.agentsAPI, list: apiMock.botList, runs: apiMock.runs, save: apiMock.botSave, updateNavigation: apiMock.botUpdateNavigation } };
+});
+
+vi.mock('../services/templates', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/templates')>();
+  return { ...actual, templatesAPI: { ...actual.templatesAPI, export: apiMock.templateExport, publish: apiMock.templatePublish } };
 });
 
 // 群路由与 Bot 路由不在同一层，单独 mock 避免测试依赖真实后端
@@ -447,6 +454,12 @@ describe('应用外壳', () => {
 
 describe('Bot 侧栏右键操作', () => {
   const helper = { ...DEFAULT_BOT, id: 'helper', name: '小助手', avatar: 'robo', instructions: '帮助写作', version: 4 };
+  const templateConfig = {
+    format: 'soren.bot-template', schemaVersion: 1, name: helper.name, description: '',
+    avatar: helper.avatar, instructions: helper.instructions,
+    definition: { canDo: ['整理文稿'], cannotDo: ['发送邮件'], workflow: '先确认需求', output: '给出草稿' },
+    policyTemplate: null, memoryEnabled: true, requiredCapabilities: [],
+  };
   const openMenu = async (name = '小助手') => {
     const row = await within(screen.getByRole('navigation', { name: 'Bot 导航' })).findByRole('button', { name });
     fireEvent.contextMenu(row, { clientX: 100, clientY: 180 });
@@ -456,6 +469,9 @@ describe('Bot 侧栏右键操作', () => {
     mockOnlineEmpty();
     apiMock.botList.mockResolvedValue([DEFAULT_BOT, helper]);
     apiMock.botUpdateNavigation.mockReset();
+    apiMock.templateExport.mockReset();
+    apiMock.templateExport.mockResolvedValue(templateConfig);
+    apiMock.templatePublish.mockReset();
   });
 
   it('右键非当前 Bot 不切换对话，置顶和取消置顶发送局部更新并跟随后端排序', async () => {
@@ -477,56 +493,59 @@ describe('Bot 侧栏右键操作', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Bot 导航' })).getAllByRole('button')[0]).toHaveAccessibleName('Soren'));
   });
 
-  it('复制 Bot 预填配置，保存失败可重试，成功后进入独立副本', async () => {
-    const source = {
-      ...helper, model: 'writer-model', memoryEnabled: false, pinned: true,
-      collaborationEnabled: true, collaborationAll: true, collaborators: ['soren'],
-      templateSource: { service: 'https://templates.example.com', id: 'template', revision: 2, digest: 'digest' },
-      definition: { canDo: ['整理文稿'], cannotDo: ['发送邮件'], workflow: '先确认需求', output: '给出草稿' },
-      policy: { actions: { 'gmail.send': 'deny' as const } },
-    };
-    apiMock.botList.mockResolvedValue([DEFAULT_BOT, source]);
-    apiMock.botSave.mockRejectedValueOnce(new Error('保存失败，请重试')).mockImplementation(async draft => {
-      const created = { ...draft, id: 'helper-copy' };
-      apiMock.botList.mockResolvedValue([DEFAULT_BOT, source, created]);
-      return created;
+  it('右键复制 Bot 创建分享模板，发布失败可重试，成功后展示链接卡片', async () => {
+    const url = 'https://templates.example.com/t/helper-template/v/1';
+    apiMock.templatePublish.mockRejectedValueOnce(new Error('发布失败，请重试')).mockResolvedValue({
+      id: 'helper-template', revision: 1, digest: 'digest', publisher: '作者', createdAt: '',
+      url, disabled: false, config: templateConfig,
     });
     const user = userEvent.setup(); render(<App />);
     await user.click(within(await openMenu()).getByRole('menuitem', { name: '复制 Bot' }));
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    const editor = screen.getByRole('dialog', { name: '新建 Bot' });
-    expect(within(editor).getByRole('textbox', { name: '名称' })).toHaveValue('小助手 副本');
-    expect(within(editor).getByRole('textbox', { name: '职责' })).toHaveValue('帮助写作');
-    expect(within(editor).getByRole('textbox', { name: '负责事项 1' })).toHaveValue('整理文稿');
-    expect(within(editor).getByRole('button', { name: '头像 robo' })).toHaveAttribute('aria-pressed', 'true');
+    const publisher = screen.getByRole('dialog', { name: '创建 Bot 模板' });
+    expect(await within(publisher).findByRole('textbox', { name: '模板名称' })).toHaveValue('小助手');
+    expect(publisher).toHaveTextContent('帮助写作');
+    expect(apiMock.templateExport).toHaveBeenCalledWith('helper');
+    expect(apiMock.templatePublish).not.toHaveBeenCalled();
     expect(apiMock.botSave).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: '新建 Bot' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Soren' })).toHaveAttribute('aria-current', 'page');
-    await user.click(within(editor).getByRole('button', { name: '创建 Bot' }));
-    expect(await within(editor).findByRole('alert')).toHaveTextContent('保存失败');
-    await user.click(within(editor).getByRole('button', { name: '创建 Bot' }));
-    expect(await screen.findByRole('button', { name: '小助手 副本' })).toHaveAttribute('aria-current', 'page');
-    expect(apiMock.botSave).toHaveBeenLastCalledWith(expect.objectContaining({
-      id: '', version: 1, name: '小助手 副本', model: 'writer-model', memoryEnabled: false,
-      definition: source.definition, policy: source.policy,
-      collaborators: [], collaborationEnabled: false, collaborationAll: false, status: 'active',
-    }), true);
-    const savedDraft = apiMock.botSave.mock.calls[1][0];
-    expect(savedDraft.templateSource).toBeUndefined();
-    expect(savedDraft.pinned).toBeUndefined();
-    expect(screen.getByRole('button', { name: '小助手' })).toBeInTheDocument();
+    await user.click(within(publisher).getByRole('button', { name: '确认发布模板' }));
+    expect(await within(publisher).findByRole('alert')).toHaveTextContent('发布失败');
+    await user.click(within(publisher).getByRole('button', { name: '确认发布模板' }));
+    const card = await screen.findByRole('dialog', { name: '模板已发布' });
+    expect(within(card).getByRole('heading', { name: '小助手' })).toBeInTheDocument();
+    expect(within(card).getByLabelText('模板链接')).toHaveValue(url);
+    expect(within(card).queryByText('帮助写作')).not.toBeInTheDocument();
+    expect(apiMock.templatePublish).toHaveBeenLastCalledWith(templateConfig, expect.any(String), undefined);
+    expect(apiMock.botSave).not.toHaveBeenCalled();
     expect(apiMock.botUpdateNavigation).not.toHaveBeenCalled();
+    expect(within(screen.getByRole('navigation', { name: 'Bot 导航' })).getAllByRole('button')).toHaveLength(2);
   });
 
-  it('取消复制 Bot 不创建副本，也不修改原 Bot', async () => {
+  it('取消复制 Bot 不发布模板，也不创建或修改 Bot', async () => {
     const user = userEvent.setup(); render(<App />);
     await user.click(within(await openMenu()).getByRole('menuitem', { name: '复制 Bot' }));
-    const editor = screen.getByRole('dialog', { name: '新建 Bot' });
-    fireEvent.change(within(editor).getByRole('textbox', { name: '职责' }), { target: { value: '新的职责' } });
-    await user.click(within(editor).getByRole('button', { name: '取消' }));
+    const publisher = screen.getByRole('dialog', { name: '创建 Bot 模板' });
+    const name = await within(publisher).findByRole('textbox', { name: '模板名称' });
+    fireEvent.change(name, { target: { value: '新的模板名称' } });
+    await user.click(within(publisher).getByRole('button', { name: '取消' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(apiMock.templatePublish).not.toHaveBeenCalled();
     expect(apiMock.botSave).not.toHaveBeenCalled();
     await user.click(within(await openMenu()).getByRole('menuitem', { name: '复制 Bot' }));
-    expect(within(screen.getByRole('dialog', { name: '新建 Bot' })).getByRole('textbox', { name: '职责' })).toHaveValue('帮助写作');
+    expect(await within(screen.getByRole('dialog', { name: '创建 Bot 模板' })).findByRole('textbox', { name: '模板名称' })).toHaveValue('小助手');
+  });
+
+  it('我的 Bot 列表的复制按钮也打开相同的模板创建流程', async () => {
+    const user = userEvent.setup(); render(<App />);
+    await screen.findByRole('button', { name: '小助手' });
+    await user.click(screen.getByRole('button', { name: '设置' }));
+    await user.click(within(screen.getByRole('navigation', { name: '设置功能' })).getByRole('button', { name: '我的 Bot' }));
+    await user.click(screen.getByRole('button', { name: '复制 小助手' }));
+    expect(await within(screen.getByRole('dialog', { name: '创建 Bot 模板' })).findByRole('textbox', { name: '模板名称' })).toHaveValue('小助手');
+    expect(apiMock.templateExport).toHaveBeenCalledWith('helper');
+    expect(apiMock.botSave).not.toHaveBeenCalled();
   });
 
   it('重命名失败保留表单，成功后更新名称并保留职责', async () => {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PageContainer, PageHeading } from "../components/layout/Shell";
 import { Button } from "../components/ui";
 import { IconPlus } from "../components/icons";
-import { avatarURL, copyBotDraft, type Bot } from "../services/agents";
+import { avatarURL, type Bot } from "../services/agents";
 import {
   MyTemplates,
   TemplateBotPicker,
@@ -112,9 +112,9 @@ export function BotsPage({
                   variant="ghost"
                   disabled={!bot.instructions.trim()}
                   onClick={() => setSharing(bot)}
-                  aria-label={`创建 ${bot.name} 的模板`}
+                  aria-label={`复制 ${bot.name}`}
                 >
-                  创建模板
+                  复制 Bot
                 </Button>
                 <Button
                   variant="ghost"
@@ -122,13 +122,6 @@ export function BotsPage({
                   aria-label={`配置 ${bot.name}`}
                 >
                   配置
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => edit(copyBotDraft(bot))}
-                  aria-label={`复制 ${bot.name}`}
-                >
-                  复制 Bot
                 </Button>
                 <Button
                   disabled={bot.status !== "active"}
