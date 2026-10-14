@@ -27,6 +27,10 @@ export interface Message {
   timestamp: string;
   createdAt: string;
   updatedAt: string;
+  /** 群聊发言 Bot；单聊与用户消息为空。后端 omitempty */
+  speakerBotId?: string;
+  /** 发言人名称冗余存储，Bot 改名或删除后仍可正确显示 */
+  speakerName?: string;
 }
 
 /** 对话 */
@@ -63,6 +67,104 @@ export interface ChatResponse {
   message: Message;
   /** 本轮注入 system prompt 的记忆摘要，用于展示"AI 想起了什么" */
   memoriesUsed?: string[];
+}
+
+// ────────────────────────────────────────────────────────────
+// 群聊
+// ────────────────────────────────────────────────────────────
+
+/** 发言模式：mention=你 @ 谁谁回答；auto=群内 Bot 依次自主发言 */
+export type GroupMode = 'mention' | 'auto';
+
+/** 群成员展示信息 */
+export interface GroupMemberView {
+  botId: string;
+  name: string;
+  avatar: string;
+  status: string;
+}
+
+/** GET /api/groups、POST /api/groups、PATCH /api/groups/:id 的响应体 */
+export interface GroupView {
+  id: string;
+  title: string;
+  topic: string;
+  mode: GroupMode;
+  maxRounds: number;
+  lastMessageAt?: string;
+  /** 后端已含「发言人名：」前缀并截断，前端只做单行省略 */
+  lastMessagePreview?: string;
+  members: GroupMemberView[];
+  createdAt: string;
+  updatedAt: string;
+  /**
+   * 是否置顶
+   *
+   * GET /api/groups 的顺序已经是「置顶在前（pinnedAt 倒序）、未置顶在后（updatedAt 倒序）」，
+   * 前端按返回顺序渲染，不再自己排一次。
+   */
+  pinned: boolean;
+  /** 置顶时间，未置顶时为空；由后端维护，前端不传 */
+  pinnedAt?: string | null;
+}
+
+/**
+ * GET /api/groups/:id 的响应体
+ *
+ * 群历史只有这一个入口：群对话挂在 BotID = "group:<id>" 上，
+ * 而 /api/conversations 走 X-Bot-ID 中间件解析不出真实 Bot，会 404。
+ */
+export interface GroupDetailView extends GroupView {
+  conversationId?: string;
+  messages: Message[];
+  latestTurn?: { requestId: string; status: GroupSpeakStatus; error?: string; mode: GroupMode };
+}
+
+/** 一次群发言的结果状态 */
+export type GroupSpeakStatus = 'done' | 'cancelled' | 'failed' | 'running' | 'interrupted';
+
+/**
+ * POST /api/groups/:id/messages 的响应体
+ *
+ * messages 是本次发言落库的整段（含用户自己那条），不是群全部历史，
+ * 前端替换乐观消息并按服务端 ID 合并，不做内容级去重。
+ */
+export interface SpeakResult {
+  conversationId: string;
+  status: GroupSpeakStatus;
+  messages: Message[];
+  /** 说明本轮哪些 Bot 未发言 */
+  error: string;
+}
+
+/** POST /api/groups 请求体 */
+export interface GroupCreateInput {
+  title: string;
+  topic: string;
+  botIds: string[];
+  mode: GroupMode;
+  maxRounds: number;
+}
+
+/** PATCH /api/groups/:id 请求体：字段可选，未传的保持原值 */
+export interface GroupUpdateInput {
+  title?: string;
+  topic?: string;
+  botIds?: string[];
+  mode?: GroupMode;
+  maxRounds?: number;
+  /** 置顶开关。pinnedAt 由后端维护，不要传 */
+  pinned?: boolean;
+}
+
+/** POST /api/groups/:id/messages 请求体 */
+export interface GroupSpeakInput {
+  content: string;
+  mentions: string[];
+  mode: GroupMode;
+  /** 幂等键，必填，同键重复提交返回同一批消息 */
+  requestId: string;
+  config?: LLMOptions;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -298,6 +400,16 @@ export interface AppSettings {
 
 /** 顶层视图标识（不引入 react-router，用 state 切换） */
 export type ViewId = 'chat' | 'memories' | 'channels' | 'settings' | 'bots' | 'tasks' | 'shared' | 'history';
+
+/**
+ * 侧栏当前选中对象
+ *
+ * 群聊与单聊是两种不同的页面实体，各自持有独立状态，
+ * 因此 AppContent 的挂载 key 用 type + id，切走再切回不互相污染。
+ */
+export type Selection =
+  | { type: 'bot'; id: string }
+  | { type: 'group'; id: string };
 
 // ────────────────────────────────────────────────────────────
 // 统一错误

@@ -17,6 +17,7 @@ import (
 	"github.com/soren/backend/internal/channel"
 	"github.com/soren/backend/internal/config"
 	"github.com/soren/backend/internal/connectors"
+	"github.com/soren/backend/internal/group"
 	"github.com/soren/backend/internal/llm"
 	"github.com/soren/backend/internal/memory"
 	"github.com/soren/backend/internal/middleware"
@@ -24,6 +25,7 @@ import (
 	"github.com/soren/backend/internal/models"
 	"github.com/soren/backend/internal/repository"
 	"github.com/soren/backend/internal/store"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -45,8 +47,21 @@ func main() {
 		}
 		_ = os.Chmod(backup, 0600)
 	}
+	// 引入群聊表之前自行备份
+	//
+	// 上面那个守卫是一次性历史迁移（补 bot_id），对任何已经升级过的安装恒为 false，
+	// 本次 schema 变更没有现成的备份机会。备份失败就拒绝启动：
+	// 宁可让用户打不开，也不要在没有退路的情况下改表。
+	if backup, err := backupBeforeGroupMigration(db, cfg); err != nil {
+		log.Fatalf("Cannot back up database before group chat migration: %v", err)
+	} else if backup != "" {
+		log.Printf("Group chat schema backup created: %s", backup)
+	}
 	// 自动迁移数据库表
-	if err := db.AutoMigrate(&models.Conversation{}, &models.Message{}, &models.LLMConfig{}); err != nil {
+	if err := db.AutoMigrate(
+		&models.Conversation{}, &models.Message{}, &models.LLMConfig{},
+		&models.GroupChat{}, &models.GroupMember{}, &models.GroupTurn{},
+	); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
@@ -88,6 +103,7 @@ func main() {
 
 	// 初始化仓储
 	convRepo := repository.NewConversationRepository(db)
+	groupRepo := repository.NewGroupRepository(db)
 
 	// 初始化 LLM 提供商
 	//
@@ -121,6 +137,13 @@ func main() {
 	}
 	agents.AttachTools(tools)
 	chatHandler := api.NewChatHandler(convRepo, provider, memoryManager).WithAgents(agents)
+
+	// 群聊编排器：进程上次被杀时会留下 running 的发言记录，
+	// 不收敛的话该群此后再也无法发言（互斥锁永远占着）。
+	groupOrchestrator := group.New(agents, convRepo, groupRepo, provider, memoryManager)
+	if err := groupOrchestrator.RecoverInterrupted(context.Background()); err != nil {
+		log.Printf("Failed to converge interrupted group discussions: %v", err)
+	}
 
 	// 初始化消息渠道（全部可选：未配置的渠道保持未启用状态，不影响服务启动）
 	channelManager := channel.NewManager()
@@ -158,6 +181,9 @@ func main() {
 	api.RegisterAgents(apiGroup, agents)
 	api.RegisterConnectors(apiGroup, tools, "http://127.0.0.1:"+cfg.ServerPort+"/oauth/google/callback")
 	api.RegisterOAuthCallback(r, tools)
+	// 群聊挂根路由而非 /api 分组：分组的 BotContext 中间件会强制解析 X-Bot-ID，
+	// 而群聊的身份来自群成员而不是某个 Bot。
+	api.RegisterGroups(r, api.NewGroupHandler(groupOrchestrator, groupRepo, convRepo, agents))
 	{
 		// 聊天相关
 		apiGroup.POST("/chat", chatHandler.SendMessage)
@@ -240,6 +266,53 @@ func main() {
 	if err := r.Run(address); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// backupBeforeGroupMigration 在引入群聊相关表之前备份 SQLite 数据库。
+//
+// 返回备份路径；本次 schema 已经是最新时返回空字符串。备份失败必须让调用方
+// 拒绝启动——没有退路时改表的风险高于打不开。
+func backupBeforeGroupMigration(db *gorm.DB, cfg *config.Config) (string, error) {
+	if cfg.StorageDriver != config.StorageDriverSQLite || !groupSchemaMissing(db) {
+		return "", nil
+	}
+	backup := cfg.SQLitePath + ".before-groups-" + time.Now().Format("20060102-150405")
+	if err := db.Exec("VACUUM INTO ?", backup).Error; err != nil {
+		return "", err
+	}
+	// 与数据库文件本身保持同一权限：备份里包含用户的全部对话内容
+	if err := os.Chmod(backup, 0600); err != nil {
+		return "", err
+	}
+	return backup, nil
+}
+
+// groupSchemaMissing 判断群聊相关表与列是否尚未建立
+//
+// 逐列比对而不是只看表是否存在。AutoMigrate 对已存在的表走的是 ALTER TABLE 加列，
+// 如果守卫只检查 HasTable，那么后续给 group_chats 加新列时不会触发备份——
+// 而那次 ALTER 同样可能失败并留下半改的库。把列清单列在这里，是为了让下次加列时
+// 有个必须同步的位置，而不是等线上出事才发现漏了。
+func groupSchemaMissing(db *gorm.DB) bool {
+	for _, table := range []any{&models.GroupChat{}, &models.GroupMember{}, &models.GroupTurn{}} {
+		if !db.Migrator().HasTable(table) {
+			return true
+		}
+	}
+	for _, column := range []struct {
+		table any
+		name  string
+	}{
+		{&models.Message{}, "speaker_bot_id"},
+		{&models.GroupTurn{}, "request_fingerprint"},
+		{&models.GroupChat{}, "pinned"},
+		{&models.GroupChat{}, "pinned_at"},
+	} {
+		if !db.Migrator().HasColumn(column.table, column.name) {
+			return true
+		}
+	}
+	return false
 }
 
 // appCORSConfig restricts browser access to the desktop app and its dev server.

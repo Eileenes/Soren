@@ -17,8 +17,14 @@ type Message struct {
 	Role           string    `gorm:"type:varchar(20);not null" json:"role"` // user, assistant, system
 	Content        string    `gorm:"type:text;not null" json:"content"`
 	Timestamp      time.Time `gorm:"not null" json:"timestamp"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	// SpeakerBotID 群聊中该条消息的发言 Bot。群聊一次发言会产生多条 assistant
+	// 消息而 X-Bot-ID 请求头只有一个值，身份只能随消息落库；单聊留空。
+	SpeakerBotID string `gorm:"type:varchar(36);index" json:"speakerBotId,omitempty"`
+	// SpeakerName 冗余存储发言人名称。运行时 join Bot 表会让历史消息在用户
+	// 改名或删除 Bot 之后错认身份。
+	SpeakerName string    `gorm:"type:varchar(100)" json:"speakerName,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // Conversation 对话模型
