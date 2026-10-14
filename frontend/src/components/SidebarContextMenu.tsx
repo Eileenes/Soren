@@ -13,7 +13,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IconEdit, IconPin, IconTrash, IconSettings } from './icons';
+import { IconCopy, IconEdit, IconPin, IconTrash, IconSettings } from './icons';
 
 export interface SidebarContextMenuProps {
   kind: 'bot' | 'group';
@@ -27,15 +27,13 @@ export interface SidebarContextMenuProps {
   onTogglePin: () => void;
   onRename: () => void;
   onConfigure: () => void;
+  onCopy?: () => void;
   onDelete: () => void;
 }
 
 /** 与加号菜单同一档宽度；「重命名聊天」5 字 × 13px + 图标 + 内边距实测约 123px */
 const MENU_WIDTH = 160;
-/** 6px 内边距 + 4 项 × 38px，用于判断上下翻转 */
-const MENU_HEIGHT = 164;
-
-export function SidebarContextMenu({ kind, pinned, anchor, deleteDisabled = false, deleteDisabledReason, onClose, onTogglePin, onRename, onConfigure, onDelete }: SidebarContextMenuProps) {
+export function SidebarContextMenu({ kind, pinned, anchor, deleteDisabled = false, deleteDisabledReason, onClose, onTogglePin, onRename, onConfigure, onCopy, onDelete }: SidebarContextMenuProps) {
   const menu = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState({ left: anchor.x, top: anchor.y });
@@ -44,9 +42,11 @@ export function SidebarContextMenu({ kind, pinned, anchor, deleteDisabled = fals
   const items = [
     { id: 'pin', label: pinned ? '取消置顶' : '置顶', Icon: IconPin, disabled: false, run: onTogglePin },
     { id: 'configure', label: kind === 'bot' ? '配置 Bot' : '配置群聊', Icon: IconSettings, disabled: false, run: onConfigure },
+    ...(kind === 'bot' && onCopy ? [{ id: 'copy', label: '复制 Bot', Icon: IconCopy, disabled: false, run: onCopy }] : []),
     { id: 'rename', label: kind === 'bot' ? '重命名 Bot' : '重命名聊天', Icon: IconEdit, disabled: false, run: onRename },
-    { id: 'delete', label: '删除', Icon: IconTrash, disabled: deleteDisabled, run: onDelete },
+    { id: 'delete', label: kind === 'bot' ? '归档' : '删除', Icon: IconTrash, disabled: deleteDisabled, run: onDelete },
   ];
+  const menuHeight = 12 + items.length * 38;
 
   // 贴着右键点位展开，越界时夹回视口；下方放不下且上方更宽裕时翻到上方
   useLayoutEffect(() => {
@@ -55,9 +55,9 @@ export function SidebarContextMenu({ kind, pinned, anchor, deleteDisabled = fals
     const above = anchor.y - 12;
     setPosition({
       left: Math.max(12, Math.min(anchor.x, window.innerWidth - width - 12)),
-      top: below >= MENU_HEIGHT || below >= above ? anchor.y + 6 : Math.max(8, anchor.y - MENU_HEIGHT - 6),
+      top: below >= menuHeight || below >= above ? anchor.y + 6 : Math.max(8, anchor.y - menuHeight - 6),
     });
-  }, [anchor]);
+  }, [anchor, menuHeight]);
 
   useEffect(() => {
     menu.current?.focus();

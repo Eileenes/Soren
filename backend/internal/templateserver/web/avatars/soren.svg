@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title">
+  <title id="title">Soren — monochrome companion</title>
+  <defs>
+    <linearGradient id="face" x1="73" y1="47" x2="188" y2="205" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FAFAFA"/><stop offset=".48" stop-color="#EEEEEE"/><stop offset="1" stop-color="#DEDEDE"/>
+    </linearGradient>
+  </defs>
+  <path d="M128 17C181 17 220 59 225 111C239 117 248 126 248 140C248 155 237 166 220 170C212 191 200 204 183 215C181 230 170 239 156 239C144 239 135 235 128 227C120 235 111 239 100 239C84 239 73 230 71 215C54 204 42 190 35 170C19 166 8 155 8 140C8 126 17 117 31 111C36 59 75 17 128 17Z" fill="#111111"/>
+  <path d="M128 39C173 39 204 77 204 125C204 174 175 205 128 205C81 205 52 174 52 125C52 77 83 39 128 39Z" fill="url(#face)"/>
+  <circle cx="94" cy="118" r="17" fill="#111111"/>
+  <circle cx="99" cy="112" r="4.5" fill="#FFFFFF"/>
+  <path d="M148 120C155 110 167 108 177 117" stroke="#111111" stroke-width="11" stroke-linecap="round"/>
+  <path d="M105 153C116 171 141 172 155 151" stroke="#111111" stroke-width="9" stroke-linecap="round"/>
+</svg>

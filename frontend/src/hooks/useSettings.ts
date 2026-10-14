@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { setTheme as setAppTheme } from '@tauri-apps/api/app';
 import {
   getSettings,
   resetSettings,
@@ -45,8 +46,7 @@ export function useSettings() {
 /**
  * 主题控制
  *
- * 深色为默认基调；切换时同步 <html class>、color-scheme 与文档背景，
- * 避免窗口边缘出现白色闪边。
+ * 同步页面配色与原生窗口外观，让失焦后的红绿灯仍与背景保持对比。
  */
 export function useTheme(): { theme: 'light' | 'dark'; mode: ThemeMode; toggleTheme: () => void; setTheme: (t: ThemeMode) => void } {
   const { settings, setGeneral } = useSettings();
@@ -59,6 +59,15 @@ export function useTheme(): { theme: 'light' | 'dark'; mode: ThemeMode; toggleTh
     return () => media.removeEventListener('change', update);
   }, []);
   const theme = mode === 'system' ? (systemDark ? 'dark' : 'light') : mode;
+
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    // Pass the preference, not the resolved color: null lets AppKit keep
+    // following system changes instead of pinning the current appearance.
+    void setAppTheme(mode === 'system' ? null : mode).catch((error) => {
+      console.warn('[soren] Failed to sync native window theme:', error);
+    });
+  }, [mode]);
 
   useEffect(() => {
     const root = document.documentElement;

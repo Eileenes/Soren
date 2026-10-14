@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { GettingStarted, useGettingStarted } from './components/GettingStarted';
 import { SettingsNav } from './components/layout/SettingsNav';
 import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
+import { TemplateImportHost, TemplatePublisher } from './components/BotTemplates';
 import { BotEditor, blankBot } from './components/BotEditor';
 import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { RenameChatDialog } from './components/RenameChatDialog';
@@ -76,6 +77,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeSidebar = useCallback(() => setMobileOpen(false), []);
   const [newBot, setNewBot] = useState<Bot | null>(null);
+  const [sharingBotId, setSharingBotId] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState(false);
   const [editBot, setEditBot] = useState<Bot | null>(null);
   const [editGroup, setEditGroup] = useState<GroupView | null>(null);
@@ -295,6 +297,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         onCollapsedChange={onSidebarCollapsedChange}
         onPinBot={(id, pinned) => { void handlePinBot(id, pinned); }}
         onConfigureBot={id => setEditBot(bots.find(bot => bot.id === id) ?? null)}
+        onCopyBot={setSharingBotId}
         onConfigureGroup={id => setEditGroup(groups.find(group => group.id === id) ?? null)}
         onRenameBot={id => setRenameBot(bots.find(bot => bot.id === id) ?? null)}
         onDeleteBot={id => { setDeleteBotError(''); setDeleteBot(bots.find(bot => bot.id === id) ?? null); }}
@@ -325,6 +328,8 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
 
       {newBot && <BotEditor initial={newBot} bots={bots} onClose={() => setNewBot(null)} onSaved={async bot => { setNewBot(null); onBotCreated(bot); setView('chat'); }} />}
 
+      {sharingBotId && <TemplatePublisher key={sharingBotId} botId={sharingBotId} onClose={() => setSharingBotId(null)} />}
+
       {editBot && <BotEditor initial={editBot} bots={bots} onClose={() => setEditBot(null)} onSaved={async bot => { onBotUpdated(bot); setEditBot(null); await Promise.all([onReloadBots(), onReloadGroups()]); }} />}
       {editGroup && <CreateGroupDialog key={editGroup.id} open initial={editGroup} bots={bots.filter(bot => bot.status !== 'archived')} onClose={() => setEditGroup(null)} onCreate={async input => {
         await groupsAPI.update(editGroup.id, { title: input.title, topic: input.topic, botIds: input.botIds });
@@ -341,8 +346,8 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         onClose={() => setRenameBot(null)}
         onRename={name => handleRenameBot(renameBot, name)} />}
 
-      <ConfirmDialog open={Boolean(deleteBot)} title="删除 Bot" danger loading={deletingBot}
-        confirmText="删除 Bot" cancelText="取消" onConfirm={() => void confirmDeleteBot()}
+      <ConfirmDialog open={Boolean(deleteBot)} title="归档 Bot" danger loading={deletingBot}
+        confirmText="归档 Bot" cancelText="取消" onConfirm={() => void confirmDeleteBot()}
         onCancel={() => { if (!deletingBot) { setDeleteBot(null); setDeleteBotError(''); } }}
         message={<>
           将「{deleteBot?.name}」移入已归档并从侧栏移除。对话和记忆会保留，可在「我的 Bot → 已归档」恢复；归档后该 Bot 无法继续执行任务或参与群聊。
@@ -369,7 +374,6 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         <TitleBar
           onOpenGuide={() => guide.setOpen(true)}
           title={view === 'chat' ? (isGroup ? activeGroup?.title ?? '群聊' : activeBot.name) : VIEW_TITLES[view]}
-          connection={health.state}
           settingsOpen={view !== 'chat'}
           onOpenMenu={() => setMobileOpen(true)}
         />
@@ -540,5 +544,5 @@ export default function App() {
     onBotCreated={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }}
     onBotUpdated={bot => setBots(previous => previous.map(item => item.id === bot.id ? bot : item))}
     onGroupCreated={chooseGroup}
-  /></ToastProvider>;
+  /><TemplateImportHost onImported={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }} /></ToastProvider>;
 }

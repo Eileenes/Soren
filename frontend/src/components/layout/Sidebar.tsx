@@ -15,6 +15,7 @@ export interface SidebarProps {
   onPinBot: (id: string, pinned: boolean) => void;
   onRenameBot: (id: string) => void;
   onConfigureBot: (id: string) => void;
+  onCopyBot: (id: string) => void;
   onDeleteBot: (id: string) => void;
   onSearch: () => void;
   onCreateBot: () => void;
@@ -36,7 +37,7 @@ const activityLabels: Record<BotActivity, string> = {
   running: '正在执行任务…', queued: '任务排队中', waiting_approval: '任务等待确认', paused: '任务已暂停',
 };
 
-export function Sidebar({ bots, activeBot, collapsed, onCollapsedChange, onSelectBot, onPinBot, onRenameBot, onConfigureBot, onDeleteBot, onSearch, onCreateBot, onCreateGroup, groups, activeGroupId, onSelectGroup, onPinGroup, onRenameGroup, onConfigureGroup, onDeleteGroup, groupError, onRetryGroups, settingsOpen, onOpenSettings, activity, inbox, error, onRetry, mobileOpen, onClose, groupSpeaking = false }: SidebarProps) {
+export function Sidebar({ bots, activeBot, collapsed, onCollapsedChange, onSelectBot, onPinBot, onRenameBot, onConfigureBot, onCopyBot, onDeleteBot, onSearch, onCreateBot, onCreateGroup, groups, activeGroupId, onSelectGroup, onPinGroup, onRenameGroup, onConfigureGroup, onDeleteGroup, groupError, onRetryGroups, settingsOpen, onOpenSettings, activity, inbox, error, onRetry, mobileOpen, onClose, groupSpeaking = false }: SidebarProps) {
   const panel = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const createTrigger = useRef<HTMLButtonElement>(null);
@@ -217,6 +218,7 @@ export function Sidebar({ bots, activeBot, collapsed, onCollapsedChange, onSelec
       deleteDisabled={menuBot.id === 'soren'} deleteDisabledReason="默认 Soren 需保持可用" onClose={closeContextMenu}
       onTogglePin={() => { onPinBot(menuBot.id, !menuBot.pinned); onClose(); }}
       onConfigure={() => { onConfigureBot(menuBot.id); onClose(); }}
+      onCopy={() => { onCopyBot(menuBot.id); onClose(); }}
       onRename={() => { onRenameBot(menuBot.id); onClose(); }}
       onDelete={() => { onDeleteBot(menuBot.id); onClose(); }} />}
   </>;

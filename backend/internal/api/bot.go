@@ -90,7 +90,7 @@ func RegisterAgents(g *gin.RouterGroup, s *agent.Service) {
 		c.JSON(200, bots)
 	})
 	g.POST("/bots", func(c *gin.Context) {
-		var b agent.Bot
+		b := agent.Bot{CollaborationEnabled: true, CollaborationAll: true}
 		if c.ShouldBindJSON(&b) != nil {
 			c.JSON(400, gin.H{"error": "配置无效"})
 			return

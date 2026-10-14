@@ -101,6 +101,7 @@ func (v *MemoryVault) Delete(id string) error {
 }
 
 type Invocation struct {
+	PolicyRevision    string    `json:"-"`
 	ID                string    `gorm:"primaryKey" json:"id"`
 	RunID             string    `gorm:"index" json:"runId"`
 	BotID             string    `json:"botId"`

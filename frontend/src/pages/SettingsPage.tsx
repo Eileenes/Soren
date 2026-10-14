@@ -1,4 +1,6 @@
 import { MobileDevices } from '../components/MobileDevices';
+import { TemplateSettingsForm } from '../components/TemplateSettingsForm';
+import { OAuthSettingsForm } from '../components/OAuthSettingsForm';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { cn, formatDateTime } from '../utils/format';
@@ -234,7 +236,11 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
           </div>
         </SettingsSection>
 
-        <SettingsSection number="02" title="外观">
+        <SettingsSection number="02" title="OAuth 登录配置" description="接入公司的统一身份认证，先保存应用凭据与授权地址。">
+          <OAuthSettingsForm desktop={desktop} onNotify={onNotify} />
+        </SettingsSection>
+
+        <SettingsSection number="03" title="外观">
           <div className="grid grid-cols-3 gap-3 sm:gap-5">
             {(['light', 'dark', 'system'] as const).map((mode) => (
               <button key={mode} type="button" aria-label={mode === 'system' ? '跟随系统' : mode === 'light' ? '浅色主题' : '深色主题'} aria-pressed={theme === mode} onClick={() => onSetTheme(mode)} className={cn('theme-option overflow-hidden rounded-xl border p-2 text-left transition-colors', theme === mode ? 'border-primary-start' : 'border-line hover:border-line-strong')}>
@@ -250,8 +256,9 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
           <details className="mt-5 text-sm text-ink-2"><summary className="cursor-pointer py-1">语言偏好</summary><div className="mt-3 max-w-xs"><SelectField label="偏好语言" value={language} onChange={onSetLanguage} options={[{ value: 'zh-CN', label: '简体中文' }, { value: 'en-US', label: 'English' }]} helper="当前界面以中文呈现；完整英文界面正在规划中。" /></div></details>
         </SettingsSection>
 
-        <SettingsSection number="03" title="移动端与同步"><MobileDevices /></SettingsSection>
-        <SettingsSection number="04" title="数据">
+        <SettingsSection number="04" title="移动端与同步"><MobileDevices /></SettingsSection>
+        <SettingsSection number="05" title="Bot 模板服务"><TemplateSettingsForm /></SettingsSection>
+        <SettingsSection number="06" title="数据">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3"><span className="rounded-xl bg-primary-start/10 p-3 text-primary-start"><IconDatabase size={21} /></span><div><p className="text-sm font-medium text-ink-1">本地数据空间 · 无需登录</p><p className="mt-1 break-all text-xs text-ink-2">{desktopConfig?.dataDir ?? (desktop ? '正在读取存储位置…' : '在桌面应用中管理本地文件')}</p></div></div>
             <Button disabled={!desktop} onClick={() => void openData()}>打开数据文件夹</Button>

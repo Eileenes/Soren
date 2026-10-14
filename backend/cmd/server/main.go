@@ -25,6 +25,7 @@ import (
 	"github.com/soren/backend/internal/models"
 	"github.com/soren/backend/internal/repository"
 	"github.com/soren/backend/internal/store"
+	"github.com/soren/backend/internal/templatesclient"
 	"gorm.io/gorm"
 )
 
@@ -127,6 +128,15 @@ func main() {
 	}
 
 	// 初始化处理器
+	if cfg.StorageDriver == config.StorageDriverSQLite && db.Migrator().HasTable(&agent.Bot{}) && !db.Migrator().HasColumn(&agent.Bot{}, "policy") {
+		backup := cfg.SQLitePath + ".before-template-policy-" + time.Now().Format("20060102-150405.000000000")
+		if err := db.Exec("VACUUM INTO ?", backup).Error; err != nil {
+			log.Fatalf("Cannot back up Bot configuration before migration: %v", err)
+		}
+		if err := os.Chmod(backup, 0600); err != nil {
+			log.Fatalf("Cannot protect Bot configuration backup: %v", err)
+		}
+	}
 	agents, err := agent.New(db, provider, memoryManager, defaultModel(cfg), providerName == "local-echo")
 	if err != nil {
 		log.Fatalf("Cannot start Bot runtime: %v", err)
@@ -179,6 +189,12 @@ func main() {
 	apiGroup := r.Group("/api")
 	apiGroup.Use(api.BotContext(agents))
 	api.RegisterAgents(apiGroup, agents)
+	api.RegisterBotConfiguration(apiGroup, agents)
+	templateClient, err := templatesclient.New(agents, tools.Vault)
+	if err != nil {
+		log.Fatalf("Cannot start template client: %v", err)
+	}
+	api.RegisterTemplates(apiGroup, templateClient)
 	api.RegisterConnectors(apiGroup, tools, "http://127.0.0.1:"+cfg.ServerPort+"/oauth/google/callback")
 	api.RegisterOAuthCallback(r, tools)
 	// 群聊挂根路由而非 /api 分组：分组的 BotContext 中间件会强制解析 X-Bot-ID，

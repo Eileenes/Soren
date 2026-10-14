@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Config.Name}} · Soren Bot 模板</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f7f7f7;--card:#fff;--soft:#fafafa;--line:#e7e7e7;--ink:#181818;--muted:#737373;--button:#171717;--on-button:#fff}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+    main{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:56px 24px;gap:24px}
+    .brand{font-size:12px;font-weight:600;letter-spacing:.28em;color:var(--muted)}
+    .card{width:100%;max-width:360px;padding:48px 28px 28px;border:1px solid var(--line);border-radius:20px;background:var(--card);box-shadow:0 18px 60px #00000006}
+    .identity{display:flex;flex-direction:column;align-items:center;gap:26px;padding:8px 0 32px}
+    .avatar{display:grid;place-items:center;width:112px;height:112px;border:1px solid var(--line);border-radius:32px;background:linear-gradient(145deg,var(--card),var(--bg));box-shadow:0 8px 18px #00000008;transform:rotate(-5deg)}
+    .avatar img{width:88px;height:88px;object-fit:contain;transform:rotate(5deg);filter:drop-shadow(0 4px 4px #0000000f)}
+    h1{font-size:24px;line-height:1.45;letter-spacing:-.04em;font-weight:600;text-align:center;overflow-wrap:anywhere;max-width:100%;margin:0}
+    .link{display:flex;align-items:center;gap:6px;padding:5px 5px 5px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+    input{width:100%;min-width:0;padding:0;background:transparent;border:0;font:11px ui-monospace,"SFMono-Regular",monospace;color:var(--muted);text-overflow:ellipsis}
+    button{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}button:hover{background:var(--line);color:var(--ink)}
+    .check-icon,.copied .copy-icon{display:none}.copied .check-icon{display:block}
+    .action{display:block;margin-top:18px;padding:11px 16px;border-radius:10px;background:var(--button);color:var(--on-button);text-decoration:none;text-align:center;font-size:13px;font-weight:600;transition:opacity .15s}.action:hover{opacity:.85}
+    .hint{margin:0;text-align:center;font-size:12px;color:var(--muted)}
+    details{max-width:360px;width:100%;font-size:12px;color:var(--muted);text-align:center}summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}details p{line-height:1.9;margin:12px 0 0;overflow-wrap:anywhere}code{font:inherit;user-select:all}
+    .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+    :focus-visible{outline:2px solid var(--muted);outline-offset:4px}
+    @media(prefers-color-scheme:dark){:root{--bg:#121212;--card:#181818;--soft:#1e1e1e;--line:#303030;--ink:#f2f2f2;--muted:#969696;--button:#f0f0f0;--on-button:#171717}}
+    @media(max-width:400px){main{padding:32px 20px}.card{padding:32px 20px 20px}}
+  </style>
+  <script defer src="/assets/import.js"></script>
+</head>
+<body>
+<main>
+  <div class="brand">SOREN</div>
+  <article class="card" aria-label="Bot 模板卡片">
+    <div class="identity"><div class="avatar"><img src="{{.Avatar}}" alt="" width="88" height="88"></div><h1>{{.Config.Name}}</h1></div>
+    <div class="link">
+      <input id="template-url" aria-label="模板链接" readonly value="{{.URL}}">
+      <button id="copy-link" aria-label="复制模板链接" title="复制模板链接">
+        <svg class="copy-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+        <svg class="check-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>
+      </button>
+    </div>
+    <span id="copy-status" class="sr-only" role="status"></span>
+    <a class="action" id="open-soren" href="{{.DeepLink}}">在 Soren 中打开 ↗</a>
+  </article>
+  <p class="hint">在 Soren 中确认，即可添加到你的 Bot。</p>
+  <details><summary>没有自动打开？</summary><p>允许浏览器打开 Soren，或点击上方按钮重试。也可以在「我的 Bot → 导入模板」粘贴链接。</p><p>首次使用，请先安装 Soren，在「设置 → Bot 模板服务」填写 <code>{{.Service}}</code>。</p></details>
+</main>
+</body>
+</html>
