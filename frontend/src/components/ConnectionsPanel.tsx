@@ -6,7 +6,7 @@ import { connectionRequest as request, openExternal, type Connection } from '../
 import { describeError } from '../services/api';
 import { Button, Modal, PasswordField, TextField } from './ui';
 import { IconDatabase, IconInbox, IconPlug } from './icons';
-import { connectionKind, isKeyKind, keyKinds, mcpPresetEndpoint, type KeyKindId } from './connectorKinds';
+import { connectionKind, isKeyKind, keyCredentialLabel, keyKinds, mcpPresetEndpoint, type KeyKindId } from './connectorKinds';
 
 type Kind = 'gmail' | 'notion' | 'mcp' | KeyKindId;
 const cards = [
@@ -34,7 +34,7 @@ export function ConnectionsPanel({ children }: { children?: ReactNode }) {
       if (editing) await request('PUT', `/connections/${editing.id}`, {...editing, allowedBots: allowed});
       else if (kind === 'gmail') { const result = await request<{url: string}>('POST', '/connections/gmail/authorize', {clientId, clientSecret: token, allowedBots: allowed}); await openExternal(result.url); setNotice('在浏览器完成 Google 授权后，连接会出现在这里。'); }
       else {
-        if (isKeyKind(kind) && !token.trim()) throw new Error(`请填写 ${keyKinds[kind].title} API Key`);
+        if (isKeyKind(kind) && !token.trim()) throw new Error(`请填写 ${keyKinds[kind].title} ${keyCredentialLabel(kind)}`);
         const presetEndpoint = mcpPresetEndpoint(kind);
         await request('POST', '/connections', {kind: presetEndpoint ? 'mcp' : kind, name, endpoint: presetEndpoint || endpoint, token: isKeyKind(kind) ? token.trim() : token, allowedBots: allowed});
       }
@@ -52,9 +52,9 @@ export function ConnectionsPanel({ children }: { children?: ReactNode }) {
       {!editing && <>
         {kind === 'gmail' ? <><p className="text-sm leading-6 text-ink-2">使用 Google 桌面 OAuth 客户端。凭据保存在本机系统凭据库。</p><TextField label="Google Client ID" value={clientId} onChange={e => setClientId(e.target.value)} autoComplete="off" /><PasswordField label="Google Client Secret" value={token} onChange={e => setToken(e.target.value)} autoComplete="off" /></> : <>
           {kind === 'mcp' && <><TextField label="连接名称" value={name} onChange={e => setName(e.target.value)} maxLength={100} /><TextField label="HTTPS MCP 地址" placeholder="https://example.com/mcp" value={endpoint} onChange={e => setEndpoint(e.target.value)} /><p className="text-xs leading-5 text-ink-3">支持 Streamable HTTP 和 Bearer 令牌。远程工具逐次确认；尚不支持 MCP OAuth 登录。</p></>}
-          {isKeyKind(kind) && <><p className="text-sm leading-6 text-ink-2">{keyKinds[kind].hint}</p><button type="button" className="text-xs text-primary-start underline" onClick={() => void openExternal(keyKinds[kind].keyURL).catch(e => setError(describeError(e)))}>获取 API Key</button></>}
+          {isKeyKind(kind) && <><p className="text-sm leading-6 text-ink-2">{keyKinds[kind].hint}</p><button type="button" className="text-xs text-primary-start underline" onClick={() => void openExternal(keyKinds[kind].keyURL).catch(e => setError(describeError(e)))}>获取 {keyCredentialLabel(kind)}</button></>}
           {kind === 'notion' && <p className="text-sm leading-6 text-ink-2">填写 Notion 内部连接令牌，并在 Notion 中将需要的页面共享给此连接。</p>}
-          <PasswordField label={kind === 'notion' ? 'Notion 连接令牌' : isKeyKind(kind) ? `${keyKinds[kind].title} API Key` : '访问令牌（可选）'} value={token} onChange={e => setToken(e.target.value)} autoComplete="off" />
+          <PasswordField label={kind === 'notion' ? 'Notion 连接令牌' : isKeyKind(kind) ? `${keyKinds[kind].title} ${keyCredentialLabel(kind)}` : '访问令牌（可选）'} value={token} onChange={e => setToken(e.target.value)} autoComplete="off" />
         </>}
       </>}
       <fieldset><legend className="mb-3 text-sm font-medium text-ink-1">可使用的 Bot</legend><div className="grid gap-2 sm:grid-cols-2">{bots.filter(b => b.status !== 'archived').map(b => <label key={b.id} className="connector-choice"><input type="checkbox" checked={allowed.includes(b.id)} onChange={e => setAllowed(prev => e.target.checked ? [...prev, b.id] : prev.filter(id => id !== b.id))} /><img src={avatarURL(b.avatar)} alt="" /><span>{b.name}</span></label>)}</div></fieldset>

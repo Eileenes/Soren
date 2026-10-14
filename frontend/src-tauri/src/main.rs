@@ -55,6 +55,7 @@ fn open_external(url: String) -> Result<(), String> {
                     | "capybrowser.app.baizhi.cloud"
                     | "design-prompt.app.baizhi.cloud"
                     | "agent-toolkit.app.baizhi.cloud"
+                    | "octobus.chaitin.net"
             )
         )
         || !parsed.username().is_empty()
