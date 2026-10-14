@@ -23,18 +23,21 @@ var ErrConflict = errors.New("内容已在其他窗口更新，请刷新后重�
 var Avatars = []string{"soren", "angler", "flamingo", "hydrant", "iceberg", "pudin", "rex", "robo", "saboten", "tako", "yurei"}
 
 type Bot struct {
-	ID                   string    `gorm:"primaryKey;size:36" json:"id"`
-	Name                 string    `json:"name"`
-	Avatar               string    `json:"avatar"`
-	Instructions         string    `json:"instructions"`
-	Model                string    `json:"model"`
-	MemoryEnabled        bool      `json:"memoryEnabled"`
-	CollaborationEnabled bool      `json:"collaborationEnabled"`
-	Collaborators        []string  `gorm:"serializer:json;type:text" json:"collaborators"`
-	Status               string    `json:"status"`
-	Version              int       `json:"version"`
-	CreatedAt            time.Time `json:"createdAt"`
-	UpdatedAt            time.Time `json:"updatedAt"`
+	ID                   string     `gorm:"primaryKey;size:36" json:"id"`
+	Name                 string     `json:"name"`
+	Avatar               string     `json:"avatar"`
+	Instructions         string     `json:"instructions"`
+	Model                string     `json:"model"`
+	MemoryEnabled        bool       `json:"memoryEnabled"`
+	CollaborationEnabled bool       `json:"collaborationEnabled"`
+	CollaborationAll     bool       `json:"collaborationAll"`
+	Collaborators        []string   `gorm:"serializer:json;type:text" json:"collaborators"`
+	Status               string     `json:"status"`
+	Pinned               bool       `gorm:"not null;default:false" json:"pinned"`
+	PinnedAt             *time.Time `json:"pinnedAt,omitempty"`
+	Version              int        `json:"version"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	UpdatedAt            time.Time  `json:"updatedAt"`
 }
 type BotVersion struct {
 	ID        uint   `gorm:"primaryKey"`
@@ -97,7 +100,7 @@ func New(db *gorm.DB, p llm.Provider, m *memory.MemoryManager, model string, dem
 		return nil, err
 	}
 	if n == 0 {
-		b := Bot{ID: DefaultBotID, Name: "Soren", Avatar: "soren", Instructions: "你是 Soren，用户的个人助理。回答简洁、准确，帮助用户理清问题并完成任务。不要声称执行了未提供的工具操作。", MemoryEnabled: true, Status: "active", Version: 1, Collaborators: []string{}}
+		b := Bot{ID: DefaultBotID, Name: "Soren", Avatar: "soren", Instructions: "你是 Soren，用户的个人助理。回答简洁、准确，帮助用户理清问题并完成任务。不要声称执行了未提供的工具操作。", MemoryEnabled: true, CollaborationEnabled: true, CollaborationAll: true, Status: "active", Version: 1, Collaborators: []string{}}
 		if err := db.Create(&b).Error; err != nil {
 			return nil, err
 		}
@@ -125,15 +128,15 @@ func Contains(values []string, id string) bool {
 	}
 	return false
 }
-func (s *Service) validate(b *Bot) error {
+func validateBot(db *gorm.DB, b *Bot) error {
 	b.Name = strings.TrimSpace(b.Name)
 	b.Instructions = strings.TrimSpace(b.Instructions)
 	b.Model = strings.TrimSpace(b.Model)
 	if len([]rune(b.Name)) < 1 || len([]rune(b.Name)) > 40 {
 		return errors.New("名称需为 1–40 个字符")
 	}
-	if len([]rune(b.Instructions)) < 1 || len([]rune(b.Instructions)) > 8000 {
-		return errors.New("职责需为 1–8000 个字符")
+	if len([]rune(b.Instructions)) > 8000 {
+		return errors.New("职责最多 8000 个字符")
 	}
 	if !Contains(Avatars, b.Avatar) {
 		return errors.New("请选择内置头像")
@@ -154,7 +157,8 @@ func (s *Service) validate(b *Bot) error {
 		if id == b.ID {
 			return errors.New("协作对象不能是自己")
 		}
-		if _, err := s.GetBot(id); err != nil {
+		var collaborator Bot
+		if err := db.First(&collaborator, "id = ?", id).Error; err != nil {
 			return errors.New("协作对象不存在")
 		}
 	}
@@ -167,8 +171,12 @@ func (s *Service) SaveBot(b *Bot, create bool) error {
 		b.CreatedAt = time.Time{}
 		b.UpdatedAt = time.Time{}
 		b.Status = "active"
+		b.Pinned = false
+		b.PinnedAt = nil
+		b.CollaborationEnabled = true
+		b.CollaborationAll = true
 	}
-	if err := s.validate(b); err != nil {
+	if err := validateBot(s.DB, b); err != nil {
 		return err
 	}
 	return s.DB.Transaction(func(tx *gorm.DB) error {
@@ -180,12 +188,17 @@ func (s *Service) SaveBot(b *Bot, create bool) error {
 			expected := b.Version
 			b.Version++
 			b.UpdatedAt = time.Now()
-			result := tx.Model(&Bot{}).Where("id = ? AND version = ?", b.ID, expected).Select("name", "avatar", "instructions", "model", "memory_enabled", "collaboration_enabled", "collaborators", "status", "version", "updated_at").Updates(b)
+			result := tx.Model(&Bot{}).Where("id = ? AND version = ?", b.ID, expected).Select("name", "avatar", "instructions", "model", "memory_enabled", "collaboration_enabled", "collaboration_all", "collaborators", "status", "version", "updated_at").Updates(b)
 			if result.Error != nil {
 				return result.Error
 			}
 			if result.RowsAffected != 1 {
 				return ErrConflict
+			}
+			// Sidebar pinning is updated separately. Keep snapshots and responses
+			// consistent even when an older editor submits no pin fields.
+			if err := tx.First(b, "id = ?", b.ID).Error; err != nil {
+				return err
 			}
 		}
 		snapshot, _ := json.Marshal(b)
@@ -258,7 +271,7 @@ func (s *Service) Start(owner, requestID, goal string, peers []string) (*Run, er
 		if err != nil || b.Status != "active" {
 			return nil, errors.New("协作 Bot 不可用")
 		}
-		if !lead.CollaborationEnabled || !b.CollaborationEnabled || !Contains(lead.Collaborators, id) || !Contains(b.Collaborators, owner) {
+		if !lead.CollaborationEnabled || !b.CollaborationEnabled || (!lead.CollaborationAll && !Contains(lead.Collaborators, id)) || (!b.CollaborationAll && !Contains(b.Collaborators, owner)) {
 			return nil, errors.New("双方需在配置中允许与对方协作")
 		}
 		steps = append(steps, Step{BotID: b.ID, Name: b.Name, Avatar: b.Avatar, Instructions: b.Instructions, Model: b.Model, Status: "queued"})
@@ -295,7 +308,7 @@ func (s *Service) permissions(r *Run) error {
 		if err != nil || b.Status != "active" {
 			return errors.New("参与者已暂停或归档")
 		}
-		if b.ID != lead.ID && (!b.CollaborationEnabled || !lead.CollaborationEnabled || !Contains(b.Collaborators, lead.ID) || !Contains(lead.Collaborators, b.ID)) {
+		if b.ID != lead.ID && (!b.CollaborationEnabled || !lead.CollaborationEnabled || (!b.CollaborationAll && !Contains(b.Collaborators, lead.ID)) || (!lead.CollaborationAll && !Contains(lead.Collaborators, b.ID))) {
 			return errors.New("协作授权已撤销")
 		}
 	}

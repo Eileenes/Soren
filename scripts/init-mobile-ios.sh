@@ -19,4 +19,4 @@ if 'keychain-access-groups:' not in s:
     p.write_text(s)
 PY
 xcodegen generate --spec mobile/src-tauri/gen/apple/project.yml
-npm --prefix mobile run tauri -- icon ../assets/app-icon.svg -o src-tauri/icons
+npm --prefix mobile run tauri -- icon ../assets/app-icon-1024.png -o src-tauri/icons --ios-color '#FFFFFF'

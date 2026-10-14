@@ -1,347 +1,63 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soren 设计系统 - 配色预览</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f8f9fa;
-      padding: 40px 20px;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      font-size: 32px;
-      font-weight: 700;
-      color: #2b2d42;
-      margin-bottom: 40px;
-      text-align: center;
-    }
-
-    .section {
-      background: white;
-      border-radius: 16px;
-      padding: 32px;
-      margin-bottom: 32px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .section-title {
-      font-size: 24px;
-      font-weight: 600;
-      color: #2b2d42;
-      margin-bottom: 24px;
-    }
-
-    .color-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-    }
-
-    .color-card {
-      text-align: center;
-    }
-
-    .color-swatch {
-      height: 120px;
-      border-radius: 12px;
-      margin-bottom: 12px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 500;
-    }
-
-    .color-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: #2b2d42;
-      margin-bottom: 4px;
-    }
-
-    .color-value {
-      font-size: 12px;
-      color: #6c757d;
-      font-family: 'Consolas', monospace;
-    }
-
-    .gradient-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-
-    .gradient-accent {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    }
-
-    .logo-preview {
-      text-align: center;
-      padding: 40px;
-    }
-
-    .logo-preview img {
-      max-width: 200px;
-      height: auto;
-      margin: 20px;
-    }
-
-    .component-preview {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      margin-top: 20px;
-    }
-
-    .button-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 12px 24px;
-      border-radius: 8px;
-      border: none;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.25s;
-    }
-
-    .button-primary:hover {
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-      transform: scale(1.02);
-    }
-
-    .button-secondary {
-      background: #f1f3f5;
-      color: #2b2d42;
-      padding: 12px 24px;
-      border-radius: 8px;
-      border: none;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.25s;
-    }
-
-    .button-secondary:hover {
-      background: #dee2e6;
-    }
-
-    .message-bubble-user {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 12px 16px;
-      border-radius: 12px;
-      border-bottom-right-radius: 4px;
-      max-width: 70%;
-      margin-left: auto;
-    }
-
-    .message-bubble-ai {
-      background: #f1f3f5;
-      color: #2b2d42;
-      padding: 12px 16px;
-      border-radius: 12px;
-      border-top-left-radius: 4px;
-      max-width: 80%;
-    }
-
-    .card {
-      background: white;
-      border: 1px solid #e9ecef;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-      transition: box-shadow 0.25s;
-    }
-
-    .card:hover {
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 500;
-      margin: 4px;
-    }
-
-    .badge-primary {
-      background: #e7f5ff;
-      color: #1971c2;
-    }
-
-    .badge-success {
-      background: #d3f9d8;
-      color: #2f9e44;
-    }
-
-    .badge-neutral {
-      background: #f1f3f5;
-      color: #868e96;
-    }
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Soren · 黑白灰视觉规范</title>
+<style>
+:root { color-scheme:light; font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif; color:#181818; background:#fff; }
+* { box-sizing:border-box; }
+body { max-width:1160px; margin:0 auto; padding:64px 32px; }
+header { border-bottom:1px solid #ebebeb; padding-bottom:36px; margin-bottom:40px; }
+.eyebrow { font-size:12px; color:#737373; letter-spacing:.12em; }
+h1 { font-size:40px; letter-spacing:-.04em; font-weight:600; margin:16px 0; }
+p { color:#525252; line-height:1.8; }
+h2 { font-size:18px; margin:36px 0 20px; }
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.card { min-width:0; border:1px solid #ebebeb; border-radius:20px; padding:28px; }
+.art { display:grid; place-items:center; min-height:244px; background:#fafafa; border-radius:14px; }
+.art.dark { background:#181818; }
+.art img { width:180px; max-width:100%; }
+.card h3 { font-size:15px; font-weight:600; margin:24px 0 6px; }
+.card p { font-size:13px; margin:0; }
+.colors { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:14px; }
+.swatch { height:88px; border:1px solid #ebebeb; border-radius:12px; }
+.colors strong { display:block; margin:12px 0 4px; font-size:12px; }
+code { font-size:11px; color:#737373; }
+.controls { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.panel { padding:28px; border:1px solid #ebebeb; border-radius:20px; }
+.panel.dark { color:#f2f2f2; background:#121212; border-color:#343434; }
+.row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+button { font:inherit; font-size:13px; border:1px solid #dfdfdf; border-radius:10px; padding:10px 16px; background:#fff; color:#181818; }
+button.primary { background:#171717; color:white; border-color:#171717; }
+button.selected { background:#f5f5f5; border-color:#b9b9b9; }
+.dark button { color:#f2f2f2; background:#181818; border-color:#343434; }
+.dark button.primary { color:#171717; background:#f0f0f0; border-color:#f0f0f0; }
+.dark button.selected { background:#202020; border-color:#585858; }
+.field { margin-top:20px; padding:14px; border:1px solid #dfdfdf; background:#fafafa; border-radius:10px; font-size:13px; color:#737373; }
+.dark .field { background:#181818; border-color:#343434; color:#969696; }
+footer { margin-top:40px; padding-top:24px; border-top:1px solid #ebebeb; font-size:12px; color:#737373; }
+@media(max-width:760px) { body{padding:32px 20px;} h1{font-size:30px;} .grid,.controls{grid-template-columns:1fr;} .colors{grid-template-columns:repeat(3,minmax(0,1fr));} }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Soren 设计系统 - 配色与组件预览</h1>
-
-    <!-- Logo 预览 -->
-    <div class="section">
-      <h2 class="section-title">Logo 展示</h2>
-      <div class="logo-preview">
-        <div style="background: white; display: inline-block; padding: 20px; border-radius: 16px; margin: 10px;">
-          <img src="../assets/logo.svg" alt="Soren Logo">
-          <p style="color: #6c757d; margin-top: 10px;">浅色背景</p>
-        </div>
-        <div style="background: #1a1b1e; display: inline-block; padding: 20px; border-radius: 16px; margin: 10px;">
-          <img src="../assets/logo-dark.svg" alt="Soren Logo Dark">
-          <p style="color: #adb5bd; margin-top: 10px;">深色背景</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 主色调 -->
-    <div class="section">
-      <h2 class="section-title">品牌色彩</h2>
-      <div class="color-grid">
-        <div class="color-card">
-          <div class="color-swatch gradient-primary">主渐变</div>
-          <div class="color-name">Primary Gradient</div>
-          <div class="color-value">#667eea → #764ba2</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch gradient-accent">强调渐变</div>
-          <div class="color-name">Accent Gradient</div>
-          <div class="color-value">#f093fb → #f5576c</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #667eea;">主色起始</div>
-          <div class="color-name">Primary Start</div>
-          <div class="color-value">#667eea</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #764ba2;">主色结束</div>
-          <div class="color-name">Primary End</div>
-          <div class="color-value">#764ba2</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 语义色 -->
-    <div class="section">
-      <h2 class="section-title">语义色彩</h2>
-      <div class="color-grid">
-        <div class="color-card">
-          <div class="color-swatch" style="background: #51cf66;">成功</div>
-          <div class="color-name">Success</div>
-          <div class="color-value">#51cf66</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #ffd43b; color: #2b2d42;">警告</div>
-          <div class="color-name">Warning</div>
-          <div class="color-value">#ffd43b</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #ff6b6b;">错误</div>
-          <div class="color-name">Error</div>
-          <div class="color-value">#ff6b6b</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #4dabf7;">信息</div>
-          <div class="color-name">Info</div>
-          <div class="color-value">#4dabf7</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 中性色 -->
-    <div class="section">
-      <h2 class="section-title">中性色彩</h2>
-      <div class="color-grid">
-        <div class="color-card">
-          <div class="color-swatch" style="background: #2b2d42;">主文本</div>
-          <div class="color-name">Text Primary</div>
-          <div class="color-value">#2b2d42</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #6c757d;">次文本</div>
-          <div class="color-name">Text Secondary</div>
-          <div class="color-value">#6c757d</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #adb5bd;">辅助文本</div>
-          <div class="color-name">Text Tertiary</div>
-          <div class="color-value">#adb5bd</div>
-        </div>
-        <div class="color-card">
-          <div class="color-swatch" style="background: #f1f3f5; color: #2b2d42;">背景</div>
-          <div class="color-name">Background</div>
-          <div class="color-value">#f1f3f5</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 按钮组件 -->
-    <div class="section">
-      <h2 class="section-title">按钮组件</h2>
-      <div class="component-preview">
-        <button class="button-primary">主要按钮</button>
-        <button class="button-secondary">次要按钮</button>
-        <button class="button-primary" disabled style="opacity: 0.5; cursor: not-allowed;">禁用状态</button>
-      </div>
-    </div>
-
-    <!-- 对话气泡 -->
-    <div class="section">
-      <h2 class="section-title">对话气泡</h2>
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div class="message-bubble-ai">
-          你好！我是 Soren，有什么可以帮你的吗？
-        </div>
-        <div class="message-bubble-user">
-          这是用户发送的消息示例
-        </div>
-      </div>
-    </div>
-
-    <!-- 卡片和标签 -->
-    <div class="section">
-      <h2 class="section-title">卡片和标签</h2>
-      <div class="card">
-        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">任务卡片示例</h3>
-        <p style="color: #6c757d; margin-bottom: 12px;">这是一个示例任务的描述文本。</p>
-        <div>
-          <span class="badge badge-primary">进行中</span>
-          <span class="badge badge-success">已完成</span>
-          <span class="badge badge-neutral">待处理</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 使用说明 -->
-    <div class="section" style="background: #e7f5ff; border: none;">
-      <h2 class="section-title" style="color: #1971c2;">💡 使用提示</h2>
-      <ul style="color: #1971c2; line-height: 1.8; padding-left: 20px;">
-        <li>所有颜色值都已在 Tailwind 配置中定义</li>
-        <li>使用渐变时建议用 <code>bg-gradient-primary</code> 类</li>
-        <li>保持至少 4.5:1 的文本对比度以确保可访问性</li>
-        <li>Logo 最小使用尺寸为 32px × 32px</li>
-        <li>所有组件都支持深色模式（需添加相应类）</li>
-      </ul>
-    </div>
-  </div>
+<header><div class="eyebrow">SOREN / VISUAL IDENTITY</div><h1>安静的黑白，熟悉的笑脸。</h1><p>白色构成空间，黑色明确操作，灰色承载层次。通过留白、轮廓与字重组织界面。</p></header>
+<section aria-labelledby="identity"><h2 id="identity">品牌形象</h2><div class="grid">
+<article class="card"><div class="art"><img src="../assets/app-icon.svg" alt="一体式圆角应用图标，左厚右薄的黑色顶壳与灰白眨眼笑脸"></div><h3>应用图标</h3><p>左厚右薄的黑色弧面与灰白脸面融为一体，柔和光影衬托 Soren 的眨眼微笑。</p></article>
+<article class="card"><div class="art"><img src="../assets/logo.svg" alt="黑色轮廓、灰白脸部的 Soren 头像"></div><h3>Soren 头像</h3><p>完整角色轮廓，黑色五官，细腻灰白面部。</p></article>
+<article class="card"><div class="art dark"><img src="../assets/logo-dark.svg" alt="深色背景中的 Soren 头像"></div><h3>深色表面</h3><p>同一品牌形象，使用中性深灰与明亮脸部形成对比。</p></article>
+</div></section>
+<section aria-labelledby="palette"><h2 id="palette">核心色板</h2><div class="colors">
+<div><div class="swatch" style="background:#fff"></div><strong>页面背景</strong><code>#FFFFFF</code></div>
+<div><div class="swatch" style="background:#fafafa"></div><strong>次级表面</strong><code>#FAFAFA</code></div>
+<div><div class="swatch" style="background:#f5f5f5"></div><strong>选中背景</strong><code>#F5F5F5</code></div>
+<div><div class="swatch" style="background:#dfdfdf"></div><strong>边框</strong><code>#DFDFDF</code></div>
+<div><div class="swatch" style="background:#737373"></div><strong>辅助文字</strong><code>#737373</code></div>
+<div><div class="swatch" style="background:#171717"></div><strong>主要操作</strong><code>#171717</code></div>
+</div></section>
+<section aria-labelledby="components"><h2 id="components">组件层次</h2><div class="controls">
+<div class="panel"><div class="row"><button class="primary">主要操作</button><button>常规操作</button><button class="selected" aria-pressed="true">已选中</button></div><div class="field">浅灰输入区 · 中性描边</div></div>
+<div class="panel dark"><div class="row"><button class="primary">主要操作</button><button>常规操作</button><button class="selected" aria-pressed="true">已选中</button></div><div class="field">深色主题 · 相同灰阶层次</div></div>
+</div></section>
+<footer>实际组件以 frontend/src/styles/index.css 和 Tailwind 主题变量为准。其他 Bot 头像与外部服务图标保留身份色。</footer>
 </body>
 </html>

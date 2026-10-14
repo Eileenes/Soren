@@ -62,13 +62,9 @@ export function MobileApp() {
     };
   }, []);
   useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const update = () => {
-      document.documentElement.classList.toggle("dark", media.matches);
-    };
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("light");
+    document.documentElement.style.colorScheme = "light";
   }, []);
   useEffect(() => {
     if (!pairClient) return;
@@ -258,7 +254,7 @@ export function MobileApp() {
       ) : !client ? (
         <section className="mobile-pair">
           <div className="mobile-orb">
-            <img src="/bot-avatars/robo.png" alt="Soren 伙伴" />
+            <img src="/soren-mark.svg" alt="Soren 伙伴" />
           </div>
           <p className="mobile-eyebrow">YOUR SPACE, WITH YOU</p>
           <h1>
@@ -417,7 +413,7 @@ export function MobileApp() {
                       <div className="mt-4 space-y-4">
                         {run.result && <MarkdownView content={run.result} />}{" "}
                         {run.error && (
-                          <p className="text-sm text-red-500">{run.error}</p>
+                          <p className="text-sm text-error">{run.error}</p>
                         )}
                         {run.steps?.map((step, i) => (
                           <details key={i}>

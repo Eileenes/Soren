@@ -231,10 +231,7 @@ func (t bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	return t.base.RoundTrip(clone)
 }
-func (s *Service) mcpSession(ctx context.Context, endpoint, token string) (*mcp.ClientSession, error) {
-	if e := validEndpoint(endpoint); e != nil {
-		return nil, e
-	}
+func publicTransport() *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -251,11 +248,18 @@ func (s *Service) mcpSession(ctx context.Context, endpoint, token string) (*mcp.
 		}
 		for _, ip := range ips {
 			if ip.IP.IsPrivate() || ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast() || ip.IP.IsUnspecified() || ip.IP.IsMulticast() {
-				return nil, errors.New("远程 MCP 不允许访问本机或内网地址")
+				return nil, errors.New("远程服务不允许访问本机或内网地址")
 			}
 		}
 		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
 	}
+	return transport
+}
+func (s *Service) mcpSession(ctx context.Context, endpoint, token string) (*mcp.ClientSession, error) {
+	if e := validEndpoint(endpoint); e != nil {
+		return nil, e
+	}
+	transport := publicTransport()
 	client := &http.Client{Transport: bearerTransport{transport, token}, Timeout: 45 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("MCP 重定向未获授权") }}
 	return mcp.NewClient(&mcp.Implementation{Name: "Soren", Version: "0.3.0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: client, MaxRetries: -1, DisableStandaloneSSE: true}, nil)
 }

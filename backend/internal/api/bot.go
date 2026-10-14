@@ -9,6 +9,7 @@ import (
 	"github.com/soren/backend/internal/agent"
 	"github.com/soren/backend/internal/llm"
 	"github.com/soren/backend/internal/memory"
+	"gorm.io/gorm"
 	"net/http"
 	"strings"
 	"time"
@@ -82,7 +83,7 @@ func RegisterAgents(g *gin.RouterGroup, s *agent.Service) {
 
 	g.GET("/bots", func(c *gin.Context) {
 		bots := []agent.Bot{}
-		if err := s.DB.Order("created_at ASC").Find(&bots).Error; err != nil {
+		if err := s.DB.Order("pinned DESC").Order("pinned_at DESC").Order("created_at ASC").Order("id ASC").Find(&bots).Error; err != nil {
 			c.JSON(500, gin.H{"error": "无法加载 Bot"})
 			return
 		}
@@ -117,6 +118,25 @@ func RegisterAgents(g *gin.RouterGroup, s *agent.Service) {
 		}
 		b2, _ := s.GetBot(b.ID)
 		c.JSON(200, b2)
+	})
+	g.PATCH("/bots/:id", func(c *gin.Context) {
+		var patch agent.BotNavigationPatch
+		if c.ShouldBindJSON(&patch) != nil {
+			c.JSON(400, gin.H{"error": "参数无效"})
+			return
+		}
+		bot, err := s.UpdateBotNavigation(c.Param("id"), patch)
+		if err != nil {
+			code := 400
+			if errors.Is(err, agent.ErrConflict) {
+				code = 409
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				code = 404
+			}
+			c.JSON(code, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, bot)
 	})
 	// Shared notes are explicitly written by the local owner, never by model output.
 	g.GET("/shared-notes", func(c *gin.Context) {

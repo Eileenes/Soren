@@ -202,7 +202,7 @@ export function MobileDevices() {
         </div>
       ))}
       {error && (
-        <p role="alert" className="text-sm text-red-500">
+        <p role="alert" className="text-sm text-error">
           {error}
         </p>
       )}

@@ -16,6 +16,8 @@ export interface ModalProps {
   compact?: boolean;
   onClose: () => void;
   title?: ReactNode;
+  /** 对话框名称，用于标题在 children 中渲染的情况 */
+  ariaLabel?: string;
   description?: ReactNode;
   children?: ReactNode;
   /** 底部操作区 */
@@ -38,6 +40,7 @@ export function Modal({
   compact = false,
   onClose,
   title,
+  ariaLabel,
   description,
   children,
   footer,
@@ -121,7 +124,7 @@ export function Modal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        aria-label={ariaLabel ?? (typeof title === 'string' ? title : undefined)}
         tabIndex={-1}
         className={cn(
           'relative w-full glass-panel-strong rounded-xl shadow-xl animate-scale',
@@ -199,6 +202,7 @@ export function ConfirmDialog({
   return (
     <Modal
       open={open}
+      ariaLabel={title}
       onClose={handleCancel}
       size="sm"
       closeOnBackdrop={!loading}

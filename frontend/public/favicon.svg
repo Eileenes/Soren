@@ -1,14 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
-  <title>Soren — mint wink</title>
+  <title>Soren — refined graphite crown</title>
+  <desc>The icon itself is Soren's head. A gently tapered graphite crown, fuller on the left and thinner on the right, meets the original porcelain face and black wink and smile.</desc>
   <defs>
-    <linearGradient id="face" x1="180" y1="70" x2="780" y2="1010" gradientUnits="userSpaceOnUse"><stop stop-color="#C1F1D8"/><stop offset=".5" stop-color="#81D7BE"/><stop offset="1" stop-color="#D9E8AC"/></linearGradient>
-    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(240 170) rotate(50) scale(790)" gradientUnits="userSpaceOnUse"><stop stop-color="#F3FFE0" stop-opacity=".42"/><stop offset="1" stop-color="#F3FFE0" stop-opacity="0"/></radialGradient>
+    <path id="body" d="M286 4H738C925 4 1020 99 1020 286V738C1020 925 925 1020 738 1020H286C99 1020 4 925 4 738V286C4 99 99 4 286 4Z"/>
+    <clipPath id="body-clip"><use href="#body"/></clipPath>
+    <radialGradient id="shell" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(278 -34) rotate(18) scale(900 398)">
+      <stop stop-color="#484848"/><stop offset=".32" stop-color="#333333"/><stop offset=".7" stop-color="#222222"/><stop offset="1" stop-color="#141414"/>
+    </radialGradient>
+    <radialGradient id="porcelain" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(381 389) rotate(64) scale(892 869)">
+      <stop stop-color="#FFFFFF"/><stop offset=".39" stop-color="#FAFAFA"/><stop offset=".67" stop-color="#E7E7E7"/><stop offset=".86" stop-color="#D4D4D4"/><stop offset="1" stop-color="#BABABA"/>
+    </radialGradient>
+    <linearGradient id="body-edge" x1="186" y1="0" x2="824" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".55"/><stop offset=".4" stop-color="#FFFFFF" stop-opacity=".1"/><stop offset=".79" stop-color="#8F8F8F" stop-opacity=".18"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".6"/>
+    </linearGradient>
+    <linearGradient id="join" x1="124" y1="235" x2="902" y2="147" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".12"/><stop offset=".38" stop-color="#FFFFFF" stop-opacity=".38"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".06"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="308" y1="426" x2="715" y2="761" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#292929"/><stop offset=".52" stop-color="#181818"/><stop offset="1" stop-color="#0D0D0D"/>
+    </linearGradient>
+    <filter id="face-depth" x="-40" y="80" width="1104" height="1000" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="-4" stdDeviation="3" flood-color="#000000" flood-opacity=".16"/>
+    </filter>
+    <filter id="inlay" x="200" y="330" width="640" height="490" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="1.2" flood-color="#FFFFFF" flood-opacity=".86"/>
+    </filter>
+    <path id="face" d="M-18 206C240 310 730 265 1042 93V1042H-18V206Z"/>
   </defs>
-  <rect width="1024" height="1024" rx="226" fill="url(#face)"/>
-  <rect width="1024" height="1024" rx="226" fill="url(#light)"/>
-  <circle cx="337" cy="487" r="82" fill="#174C42"/>
-  <circle cx="362" cy="459" r="22" fill="#EAFFF1"/>
-  <path d="M596 497C630 449 688 439 736 482" stroke="#174C42" stroke-width="53" stroke-linecap="round"/>
-  <path d="M392 671C445 757 565 762 632 661" stroke="#174C42" stroke-width="43" stroke-linecap="round"/>
-  <path d="M704 195L719 235L758 250L719 265L704 305L689 265L650 250L689 235Z" fill="#F5FFE8"/>
+  <!-- One physical silhouette: the outer icon is the shell, and the face reaches its edges. -->
+  <use href="#body" fill="url(#shell)"/>
+  <g clip-path="url(#body-clip)">
+    <use href="#face" fill="url(#porcelain)" filter="url(#face-depth)"/>
+    <path d="M-18 209C240 313 730 268 1042 96" stroke="url(#join)" stroke-width="3"/>
+    <!-- Reuse Soren's own facial expression, with gentle compression for the elevated view. -->
+    <g filter="url(#inlay)">
+      <g transform="translate(512 572) rotate(-5) translate(-512 -572)">
+        <ellipse cx="373" cy="526" rx="68" ry="61" fill="url(#ink)"/>
+        <ellipse cx="393" cy="505" rx="18" ry="16" fill="#FFFFFF"/>
+        <path d="M592 532C620 498 668 492 708 523" stroke="url(#ink)" stroke-width="41" stroke-linecap="round"/>
+        <path d="M417 665C461 727 561 730 617 658" stroke="url(#ink)" stroke-width="34" stroke-linecap="round"/>
+      </g>
+    </g>
+    <use href="#body" stroke="url(#body-edge)" stroke-width="10"/>
+  </g>
+  <use href="#body" stroke="#7B7B7B" stroke-opacity=".2" stroke-width="2"/>
 </svg>

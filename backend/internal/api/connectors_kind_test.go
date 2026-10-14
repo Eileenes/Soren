@@ -19,7 +19,7 @@ import (
 
 // Every Baizhi kind validates the key against a free endpoint before saving it.
 func TestBaizhiConnectionsValidateKeyBeforeSaving(t *testing.T) {
-	for kind, check := range map[string]string{"music": "/generations", "image": "/pricing", "browser": "/me", "design": "/design-directions"} {
+	for kind, check := range map[string]string{"music": "/generations", "image": "/pricing", "video": "/video-capabilities", "browser": "/me", "design": "/design-directions"} {
 		t.Run(kind, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			db, e := store.OpenDB(&config.Config{StorageDriver: "sqlite", SQLitePath: filepath.Join(t.TempDir(), "api.db")})
@@ -43,7 +43,7 @@ func TestBaizhiConnectionsValidateKeyBeforeSaving(t *testing.T) {
 					w.WriteHeader(401)
 					return
 				}
-				w.Write([]byte(`{}`))
+				w.Write([]byte(`{"code":"ok","message":"ok","data":{"supports_image_to_video":true}}`))
 			}))
 			defer upstream.Close()
 			s.APIBase = map[string]string{kind: upstream.URL}

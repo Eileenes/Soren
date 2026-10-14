@@ -69,7 +69,7 @@ function ActionButton({
  *
  * 纯文字强调（颜色 + 字重），不加背景块也不加描边：行内 border 需要
  * inline-block，会改变 15px/leading-relaxed 正文框内的行高节奏，把消息流切碎。
- * 颜色用随主题切换的 rgb(var(--accent)) 而不是写死的 primary-start。
+ * 颜色用随主题切换的 var(--accent) 而不是写死的 primary-start。
  */
 function UserContent({ content, mentionNames }: { content: string; mentionNames?: string[] }) {
   const hits = mentionNames?.length ? findMentionHits(content, mentionNames) : [];
@@ -79,7 +79,7 @@ function UserContent({ content, mentionNames }: { content: string; mentionNames?
   hits.forEach((hit, index) => {
     if (hit.start > cursor) parts.push(content.slice(cursor, hit.start));
     parts.push(
-      <span key={`${hit.start}-${index}`} className="font-semibold text-[rgb(var(--accent))]">
+      <span key={`${hit.start}-${index}`} className="font-semibold text-[var(--accent)]">
         {content.slice(hit.start, hit.end)}
       </span>,
     );
@@ -192,14 +192,14 @@ export function MessageBubble({
         {/* 记忆召回提示：让"AI 记得我"这件事变得可见 */}
         {message.memoriesUsed && message.memoriesUsed.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pl-1">
-            <span className="inline-flex items-center gap-1 text-xs text-[rgb(var(--accent))]">
+            <span className="inline-flex items-center gap-1 text-xs text-[var(--accent)]">
               <IconBrain size={12} />
               想起了
             </span>
             {message.memoriesUsed.slice(0, 4).map((item, index) => (
               <span
                 key={`${item}-${index}`}
-                className="max-w-[220px] truncate rounded-sm border border-[rgb(var(--accent)/0.25)] bg-[rgb(var(--accent)/0.1)] px-2 py-0.5 text-xs text-[rgb(var(--accent))]"
+                className="max-w-[220px] truncate rounded-sm border border-[rgb(var(--soren-ink-1)/0.25)] bg-[rgb(var(--soren-ink-1)/0.1)] px-2 py-0.5 text-xs text-[var(--accent)]"
                 title={item}
               >
                 {item}

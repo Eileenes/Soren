@@ -333,7 +333,7 @@ export interface SwitchProps {
 /**
  * 开关
  *
- * 规格遵循设计文档：44×24，开启为品牌渐变，关闭为灰色。
+ * 规格遵循设计文档：44×24，开启为高对比黑白，关闭为灰色。
  * 用 role="switch" + aria-checked 而不是 checkbox，语义更准确。
  */
 export function Switch({
@@ -358,13 +358,14 @@ export function Switch({
           'transition-all duration-base ease-ease',
           'disabled:opacity-40 disabled:cursor-not-allowed',
           checked
-            ? 'bg-gradient-primary shadow-[0_2px_12px_-2px_rgb(102_126_234/0.7)]'
+            ? 'bg-[var(--action-bg)]'
             : 'bg-line-strong',
         )}
       >
         <span
           className={cn(
-            'inline-block h-4 w-4 rounded-full bg-white shadow-sm',
+            'inline-block h-4 w-4 rounded-full shadow-sm',
+            checked ? 'bg-[var(--action-ink)]' : 'bg-surface-1',
             'transition-transform duration-base ease-ease',
             checked ? 'translate-x-6' : 'translate-x-1',
           )}
@@ -430,15 +431,15 @@ export function RangeField({
           'accent-primary-start',
           '[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
           '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full',
-          '[&::-webkit-slider-thumb]:bg-gradient-primary',
-          '[&::-webkit-slider-thumb]:shadow-[0_0_0_3px_rgb(102_126_234/0.22)]',
+          '[&::-webkit-slider-thumb]:bg-ink-1',
+          '[&::-webkit-slider-thumb]:shadow-[0_0_0_3px_rgb(var(--soren-ink-1)/0.1)]',
           '[&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-fast',
           'hover:[&::-webkit-slider-thumb]:scale-110',
           disabled && 'opacity-40 cursor-not-allowed',
         )}
         style={{
           // 用渐变填充已选区间，形成进度感
-          backgroundImage: `linear-gradient(to right, #667eea 0%, #764ba2 ${
+          backgroundImage: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${
             ((value - min) / (max - min)) * 100
           }%, transparent ${((value - min) / (max - min)) * 100}%)`,
         }}

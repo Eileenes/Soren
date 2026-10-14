@@ -52,9 +52,11 @@ fn open_external(url: String) -> Result<(), String> {
                     | "apps.apple.com"
                     | "ai-sound-lab.app.baizhi.cloud"
                     | "image-generate.app.baizhi.cloud"
+                    | "video-api.app.baizhi.cloud"
                     | "capybrowser.app.baizhi.cloud"
                     | "design-prompt.app.baizhi.cloud"
                     | "agent-toolkit.app.baizhi.cloud"
+                    | "octobus.chaitin.net"
             )
         )
         || !parsed.username().is_empty()

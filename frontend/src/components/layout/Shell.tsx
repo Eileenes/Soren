@@ -120,7 +120,7 @@ export function PageHeading({
     <div className="page-heading mb-6 flex items-start justify-between gap-6">
       <div className="flex min-w-0 items-start gap-3">
         {icon && (
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gradient-primary text-white shadow-[0_6px_20px_-8px_rgb(102_126_234/0.9)]">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gradient-primary text-white shadow-sm">
             {icon}
           </span>
         )}

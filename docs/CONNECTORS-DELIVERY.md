@@ -49,6 +49,8 @@
 
 输入服务实际提供的公网 HTTPS Streamable HTTP endpoint，可填写 Bearer Token。当前没有 stdio 子进程、任意本地 HTTP、旧式 SSE 或 MCP OAuth 授权发现，因此不能把需要 OAuth 的服务填入地址后就视为已接通。Notion 本版使用直接 API；Canva 尚未接入。先前开源比较见 [调研记录](CONNECTOR-RESEARCH-AND-GAPS.md)，本文件代表实际交付范围。
 
+致用 OctoBus 已提供独立卡片：填写个人 Token 并选择 Bot 后验证连接，服务地址自动配置。使用与联调范围见 [致用 OctoBus 连接器](octobus-connector.md)。
+
 ## 恢复与确认
 
 - 确认绑定具体工具调用、参数、连接版本和所属 Bot；执行前再次检查任务状态及授权。

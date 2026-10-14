@@ -30,6 +30,8 @@ const (
 	MaxMembers   = 5
 	MaxRoundsCap = 6
 	MaxRoundsDef = 3
+	// Enforced for every discussion, including groups with older larger budgets.
+	DiscussionRoundsCap = 3
 
 	// maxMessageRunes 沿用单聊的消息长度上限
 	maxMessageRunes = 32000
@@ -104,6 +106,7 @@ type SpeakRequest struct {
 type SpeakResult struct {
 	ConversationID string `json:"conversationId"`
 	// Status: done | cancelled | failed | running
+	Mode     string           `json:"mode"`
 	Status   string           `json:"status"`
 	Messages []models.Message `json:"messages"`
 	// Error 说明本轮有哪些 Bot 未发言（调用失败、被跳过等）
@@ -132,17 +135,17 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		return nil, err
 	}
 
-	mode := strings.TrimSpace(req.Mode)
-	if mode == "" {
-		mode = chat.Mode
-	}
-	if mode != ModeMention && mode != ModeAuto {
-		return nil, badRequest("发言模式无效")
+	mode, err := resolveMode(content, req.Mode)
+	if err != nil {
+		return nil, err
 	}
 
 	// 幂等：同键同参数直接回放已有结果，不重复调用模型
-	fingerprint := requestFingerprint(req, mode)
+	fingerprint := requestFingerprint(req)
 	if turn, err := o.groups.GetTurnByRequestID(parent, req.RequestID); err == nil {
+		if strings.TrimSpace(req.Mode) == "" {
+			mode = turn.Mode
+		}
 		if turn.GroupID != req.GroupID || turn.Content != content || turn.Mode != mode || turn.RequestFingerprint != fingerprint {
 			return nil, conflict("请求标识已用于另一个发言")
 		}
@@ -158,9 +161,18 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		if conv != nil {
 			conversationID = conv.ID.String()
 		}
-		return &SpeakResult{ConversationID: conversationID, Status: turn.Status, Messages: messages, Error: turn.Error}, nil
+		return &SpeakResult{ConversationID: conversationID, Mode: turn.Mode, Status: turn.Status, Messages: messages, Error: turn.Error}, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
+	}
+	if strings.TrimSpace(req.Mode) == "" && isContinuation(content) {
+		latest, err := o.groups.LatestTurn(parent, chat.ID)
+		if err != nil {
+			return nil, err
+		}
+		if latest != nil && latest.Mode == ModeAuto && (latest.Status == "done" || latest.Status == "cancelled") {
+			mode = ModeAuto
+		}
 	}
 
 	members, err := o.groups.MemberIDs(parent, chat.ID)
@@ -172,7 +184,7 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 	}
 
 	targets := members
-	if mode == ModeMention && len(req.Mentions) > 0 {
+	if len(req.Mentions) > 0 {
 		targets, err = resolveMentions(members, req.Mentions)
 		if err != nil {
 			return nil, err
@@ -230,9 +242,10 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 
 	rounds := 1
 	if mode == ModeAuto {
-		rounds = chat.MaxRounds
+		rounds = min(max(chat.MaxRounds, 1), DiscussionRoundsCap)
 	}
 
+	completedRounds := 0
 	for round := 1; round <= rounds; round++ {
 		spokeThisRound := 0
 		for _, botID := range targets {
@@ -255,7 +268,7 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 				failures = append(failures, fmt.Sprintf("%s 已不可用，本轮跳过", botLabel(bot, botID)))
 				continue
 			}
-			prompt, err := o.buildMessages(ctx, chat, bot, liveMembers, conv.ID, content)
+			prompt, err := o.buildMessages(ctx, chat, bot, liveMembers, conv.ID, content, mode, round, rounds)
 			if err != nil {
 				failures = append(failures, fmt.Sprintf("%s 上下文准备失败：%v", bot.Name, err))
 				continue
@@ -295,6 +308,7 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		if cancelled {
 			break
 		}
+		completedRounds = round
 		// 全员弃权或全员失败，提前结束
 		if spokeThisRound == 0 {
 			break
@@ -314,7 +328,16 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		status = "failed"
 	}
 
-	// 记忆统一延后到发言结束：自主模式最多 30 次调用，逐条提取会拖慢响应，
+	if mode == ModeAuto && status == "done" {
+		notice := &models.Message{ConversationID: conv.ID, Role: "system", Content: fmt.Sprintf("本次讨论已结束（%d 轮）。要继续讨论吗？你确认后，我们再继续，最多三轮。", completedRounds)}
+		if err := o.groups.AddMessage(book, notice, chat.ID); err != nil {
+			failures = append(failures, "保存讨论结束提示失败")
+		} else {
+			produced = append(produced, *notice)
+		}
+	}
+
+	// 记忆统一延后到发言结束：自主模式最多 15 次调用，逐条提取会拖慢响应，
 	// 且 SQLite 单连接下争抢明显。
 	o.flushMemories(spoke, conv.ID.String(), content, base+2)
 
@@ -324,7 +347,7 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		log.Printf("[group] 无法写回发言结果: %v", err)
 	}
 
-	result := &SpeakResult{ConversationID: conv.ID.String(), Status: status, Messages: produced, Error: failure}
+	result := &SpeakResult{ConversationID: conv.ID.String(), Mode: mode, Status: status, Messages: produced, Error: failure}
 	if status == "failed" {
 		return result, serverError("全部 Bot 调用失败：" + failure)
 	}
@@ -451,7 +474,8 @@ func (o *Orchestrator) buildMessages(
 	bot *agent.Bot,
 	members []string,
 	conversationID uuid.UUID,
-	current string,
+	current, mode string,
+	round, rounds int,
 ) ([]llm.Message, error) {
 	messages := make([]llm.Message, 0, historyLimit+2)
 
@@ -484,7 +508,7 @@ func (o *Orchestrator) buildMessages(
 		messages = append(messages, entry)
 	}
 
-	messages = append([]llm.Message{{Role: "system", Content: o.systemPrompt(chat, bot, members)}}, messages...)
+	messages = append([]llm.Message{{Role: "system", Content: o.systemPrompt(chat, bot, members, mode, round, rounds)}}, messages...)
 	return messages, nil
 }
 
@@ -492,7 +516,7 @@ func (o *Orchestrator) buildMessages(
 //
 // 「不要附和」是功能成败关键：多 Bot 讨论最常见的失败模式就是模型互相恭维、
 // 迅速趋同，讨论产出因此无效。
-func (o *Orchestrator) systemPrompt(chat *models.GroupChat, bot *agent.Bot, members []string) string {
+func (o *Orchestrator) systemPrompt(chat *models.GroupChat, bot *agent.Bot, members []string, mode string, round, rounds int) string {
 	var out strings.Builder
 	out.WriteString("你是 " + bot.Name + "。以下是用户定义的职责：\n" + bot.Instructions)
 	out.WriteString("\n不具备工具时不要声称已经发送邮件、生成文件或访问外部应用。")
@@ -501,6 +525,11 @@ func (o *Orchestrator) systemPrompt(chat *models.GroupChat, bot *agent.Bot, memb
 	out.WriteString("。")
 	if topic := strings.TrimSpace(chat.Topic); topic != "" {
 		out.WriteString("\n群聊主题：" + topic)
+	}
+	if mode == ModeAuto {
+		out.WriteString(fmt.Sprintf("\n用户明确邀请了讨论。当前是第 %d/%d 轮，请回应已有观点并推进结论。最后一轮给出简短结论或剩余分歧，然后等待用户决定；不要自行发起下一轮。", round, rounds))
+	} else {
+		out.WriteString("\n本次是用户提问，每位被邀请的成员只回复一轮。直接回答用户，不邀请其他 Bot 继续、不自行发起讨论。")
 	}
 	out.WriteString("\n\n讨论规则：")
 	out.WriteString("\n- 其他参与者的观点你未必认同。有不同意见就直接指出并说明理由，不要附和。")
@@ -634,17 +663,15 @@ func messageIDs(messages []models.Message) []string {
 
 // requestFingerprint 保留请求语义，忽略提及顺序、重复项及无效的零值选项。
 // 不依赖当前群成员或默认模型，避免配置变化使原请求无法重放。
-func requestFingerprint(req SpeakRequest, mode string) string {
+func requestFingerprint(req SpeakRequest) string {
 	mentions := []string{}
-	if mode == ModeMention {
-		for _, id := range req.Mentions {
-			if id = strings.TrimSpace(id); id != "" {
-				mentions = append(mentions, id)
-			}
+	for _, id := range req.Mentions {
+		if id = strings.TrimSpace(id); id != "" {
+			mentions = append(mentions, id)
 		}
-		slices.Sort(mentions)
-		mentions = slices.Compact(mentions)
 	}
+	slices.Sort(mentions)
+	mentions = slices.Compact(mentions)
 	options := llm.Options{Temperature: 0.7, MaxTokens: 2000}
 	if req.Config != nil {
 		options.Model = req.Config.Model

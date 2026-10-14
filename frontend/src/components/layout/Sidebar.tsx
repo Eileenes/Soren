@@ -3,14 +3,19 @@ import { createPortal } from 'react-dom';
 import type { Bot } from '../../services/agents';
 import { GroupAvatar } from '../GroupAvatar';
 import { BotAvatar } from '../BotAvatar';
-import { GroupContextMenu } from '../GroupContextMenu';
+import { SidebarContextMenu } from '../SidebarContextMenu';
 import type { BotActivity } from '../../hooks/useBotRuns';
 import type { BotInbox } from '../../hooks/useBotInbox';
-import { IconSettings, IconSearch, IconPlus, IconClose, IconChat } from '../icons';
+import { IconSettings, IconSearch, IconPlus, IconClose, IconChat, IconSidebarCollapse, IconSidebarExpand, IconRefresh } from '../icons';
 import type { GroupView } from '../../types';
 
 export interface SidebarProps {
   bots: Bot[]; activeBot: Bot; onSelectBot: (id: string) => void;
+  collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void;
+  onPinBot: (id: string, pinned: boolean) => void;
+  onRenameBot: (id: string) => void;
+  onConfigureBot: (id: string) => void;
+  onDeleteBot: (id: string) => void;
   onSearch: () => void;
   onCreateBot: () => void;
   onCreateGroup: () => void;
@@ -18,6 +23,7 @@ export interface SidebarProps {
   /** 右键菜单动作，交给 App 层执行数据变更 */
   onPinGroup: (id: string, pinned: boolean) => void;
   onRenameGroup: (id: string) => void;
+  onConfigureGroup: (id: string) => void;
   onDeleteGroup: (id: string) => void;
   groupError: string | null; onRetryGroups: () => void;
   settingsOpen: boolean; onOpenSettings: () => void;
@@ -30,7 +36,7 @@ const activityLabels: Record<BotActivity, string> = {
   running: '正在执行任务…', queued: '任务排队中', waiting_approval: '任务等待确认', paused: '任务已暂停',
 };
 
-export function Sidebar({ bots, activeBot, onSelectBot, onSearch, onCreateBot, onCreateGroup, groups, activeGroupId, onSelectGroup, onPinGroup, onRenameGroup, onDeleteGroup, groupError, onRetryGroups, settingsOpen, onOpenSettings, activity, inbox, error, onRetry, mobileOpen, onClose, groupSpeaking = false }: SidebarProps) {
+export function Sidebar({ bots, activeBot, collapsed, onCollapsedChange, onSelectBot, onPinBot, onRenameBot, onConfigureBot, onDeleteBot, onSearch, onCreateBot, onCreateGroup, groups, activeGroupId, onSelectGroup, onPinGroup, onRenameGroup, onConfigureGroup, onDeleteGroup, groupError, onRetryGroups, settingsOpen, onOpenSettings, activity, inbox, error, onRetry, mobileOpen, onClose, groupSpeaking = false }: SidebarProps) {
   const panel = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const createTrigger = useRef<HTMLButtonElement>(null);
@@ -38,11 +44,11 @@ export function Sidebar({ bots, activeBot, onSelectBot, onSearch, onCreateBot, o
   const [createOpen, setCreateOpen] = useState(false);
   const [createActive, setCreateActive] = useState(0);
   const [createPosition, setCreatePosition] = useState({ left: 0, top: 0 });
-  /** 群项右键菜单：锚点是右键点位的视口坐标 */
-  const [groupMenu, setGroupMenu] = useState<{ group: GroupView; anchor: { x: number; y: number } } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ kind: 'bot' | 'group'; id: string; anchor: { x: number; y: number } } | null>(null);
   const menuOwner = useRef<HTMLButtonElement | null>(null);
   const uid = useId();
   const menuId = `${uid}-inbox-create`;
+  const navId = `${uid}-bot-navigation`;
   const items = [
     { label: '创建 Bot', Icon: IconPlus, run: onCreateBot },
     { label: '创建群聊', Icon: IconChat, run: onCreateGroup },
@@ -123,36 +129,46 @@ export function Sidebar({ bots, activeBot, onSelectBot, onSearch, onCreateBot, o
   const rows = bots.filter(bot => bot.status !== 'archived').map(bot => ({ bot, entry: inbox[bot.id] }));
   const navigate = (action: () => void) => { action(); onClose(); };
 
-  /** 关闭群菜单并把焦点还给触发它的群行，与系统右键菜单一致 */
-  const closeGroupMenu = () => {
-    setGroupMenu(null);
+  /** 菜单关闭后将焦点还给原来的头像行。 */
+  const closeContextMenu = () => {
+    setContextMenu(null);
     menuOwner.current?.focus();
   };
-  const openGroupMenu = (group: GroupView, owner: HTMLButtonElement, point: { clientX: number; clientY: number }) => {
+  const openContextMenu = (kind: 'bot' | 'group', id: string, owner: HTMLButtonElement, point: { clientX: number; clientY: number }) => {
     setCreateOpen(false);
     menuOwner.current = owner;
-    setGroupMenu({ group, anchor: { x: point.clientX, y: point.clientY } });
+    setContextMenu({ kind, id, anchor: { x: point.clientX, y: point.clientY } });
   };
   /** 键盘打开：ContextMenu 键或 Shift+F10，锚点取群行自身位置 */
-  const openGroupMenuFromRow = (group: GroupView, event: React.KeyboardEvent<HTMLButtonElement>) => {
+  const openContextMenuFromRow = (kind: 'bot' | 'group', id: string, event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+    event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    openGroupMenu(group, event.currentTarget, { clientX: Math.round(rect.left + rect.width / 2), clientY: Math.round(rect.bottom - 8) });
+    openContextMenu(kind, id, event.currentTarget, { clientX: Math.round(rect.left + rect.width / 2), clientY: Math.round(rect.bottom - 8) });
   };
+  // Resolve against current data so polling cannot leave deleted or stale targets actionable.
+  const menuBot = contextMenu?.kind === 'bot' ? bots.find(bot => bot.id === contextMenu.id && bot.status !== 'archived') : undefined;
+  const menuGroup = contextMenu?.kind === 'group' ? groups.find(group => group.id === contextMenu.id) : undefined;
   return <>
     {mobileOpen && <button className="sidebar-backdrop" aria-label="关闭导航遮罩" onClick={onClose} />}
-    <aside ref={panel} className={'app-sidebar bot-inbox' + (mobileOpen ? ' is-open' : '')} aria-label="Bot 侧栏" role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen || undefined}>
+    <aside ref={panel} className={'app-sidebar bot-inbox' + (collapsed ? ' is-collapsed' : '') + (mobileOpen ? ' is-open' : '')} aria-label="Bot 侧栏" role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen || undefined}>
       <div className="inbox-toolbar" data-tauri-drag-region>
         <button ref={closeButton} className="inbox-close icon-control" aria-label="关闭导航" onClick={onClose}><IconClose size={18} /></button>
-        <button className="inbox-tool" aria-label="搜索 Bot 和对话" title="搜索 Bot 和对话" aria-haspopup="dialog" onClick={() => navigate(onSearch)}><IconSearch size={18} /></button>
-        <button ref={createTrigger} className="inbox-tool" aria-label="创建" title="创建" aria-haspopup="menu" aria-expanded={createOpen} aria-controls={createOpen ? menuId : undefined} aria-activedescendant={createOpen ? `${menuId}-${createActive}` : undefined} onClick={() => setCreateOpen(open => !open)} onKeyDown={createKeyboard}><IconPlus size={20} /></button>
+        <button className="inbox-tool inbox-collapse" aria-label={collapsed ? '展开侧栏' : '收起侧栏'} title={collapsed ? '展开侧栏' : '收起侧栏'} aria-expanded={!collapsed} aria-controls={navId} onClick={() => { setCreateOpen(false); setContextMenu(null); onCollapsedChange(!collapsed); }}>
+          {collapsed ? <IconSidebarExpand size={20} /> : <IconSidebarCollapse size={20} />}
+        </button>
+        <button className="inbox-tool inbox-expanded-tool" aria-label="搜索 Bot 和对话" title="搜索 Bot 和对话" aria-haspopup="dialog" onClick={() => navigate(onSearch)}><IconSearch size={20} /></button>
+        <button ref={createTrigger} className="inbox-tool inbox-expanded-tool" aria-label="创建" title="创建" aria-haspopup="menu" aria-expanded={createOpen} aria-controls={createOpen ? menuId : undefined} aria-activedescendant={createOpen ? `${menuId}-${createActive}` : undefined} onClick={() => setCreateOpen(open => !open)} onKeyDown={createKeyboard}><IconPlus size={20} /></button>
       </div>
-      {error && <div className="inbox-error" role="alert"><span>暂时无法刷新 Bot</span><button onClick={onRetry}>重试</button></div>}
-      <nav className="bot-inbox-list" aria-label="Bot 导航">
+      {error && <div className="inbox-error" role="alert"><span>暂时无法刷新 Bot</span><button onClick={onRetry} title="暂时无法刷新 Bot，点击重试" aria-label="重试"><span>重试</span><IconRefresh className="inbox-compact-retry" size={16} /></button></div>}
+      <nav id={navId} className="bot-inbox-list" aria-label="Bot 导航">
         {rows.map(({ bot, entry }) => {
           const state = activity[bot.id];
           const preview = state ? activityLabels[state] : bot.status === 'paused' ? '已暂停' : entry?.failed ? '对话暂时无法加载' : entry ? entry.preview || '还没有对话，打个招呼吧' : '正在加载对话…';
           return <div key={bot.id}>
-            <button className={'bot-inbox-row' + (state ? ` is-${state}` : '')} aria-label={bot.name + (state ? ` · ${activityLabels[state].replace('…', '')}` : '')} aria-current={!activeGroupId && activeBot.id === bot.id && !settingsOpen ? 'page' : undefined} onClick={() => navigate(() => onSelectBot(bot.id))}>
+            <button className={'bot-inbox-row' + (state ? ` is-${state}` : '')} title={`${bot.name} · ${preview}`} aria-label={bot.name + (state ? ` · ${activityLabels[state].replace('…', '')}` : '')} aria-current={!activeGroupId && activeBot.id === bot.id && !settingsOpen ? 'page' : undefined} onClick={() => navigate(() => onSelectBot(bot.id))}
+              onContextMenu={event => { event.preventDefault(); openContextMenu('bot', bot.id, event.currentTarget, event); }}
+              onKeyDown={event => openContextMenuFromRow('bot', bot.id, event)}>
               <BotAvatar avatar={bot.avatar} running={state === 'running'} />
               <span className="inbox-copy"><strong>{bot.name}</strong><small title={preview}>{preview}</small></span>
               {state && <span className="inbox-state-dot" aria-hidden="true" />}
@@ -164,16 +180,12 @@ export function Sidebar({ bots, activeBot, onSelectBot, onSearch, onCreateBot, o
         {groups.map(group => {
           const preview = group.lastMessagePreview || '还没有对话';
           return <button key={group.id} className="bot-inbox-row"
+            title={`${group.title} · ${preview}`}
             aria-label={`${group.title} · ${preview.slice(0, 30)}`}
             aria-current={activeGroupId === group.id && !settingsOpen ? 'page' : undefined}
             onClick={() => navigate(() => onSelectGroup(group.id))}
-            onContextMenu={event => { event.preventDefault(); openGroupMenu(group, event.currentTarget, event); }}
-            onKeyDown={event => {
-              // 左键仍然只是打开群：菜单只由右键（或 ContextMenu 键 / Shift+F10）触发
-              if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-                event.preventDefault(); openGroupMenuFromRow(group, event);
-              }
-            }}>
+            onContextMenu={event => { event.preventDefault(); openContextMenu('group', group.id, event.currentTarget, event); }}
+            onKeyDown={event => openContextMenuFromRow('group', group.id, event)}>
             <GroupAvatar members={group.members} />
             <span className="inbox-copy"><strong title={group.title}>{group.title}</strong><small title={preview}>{preview}</small></span>
           </button>;
@@ -181,7 +193,7 @@ export function Sidebar({ bots, activeBot, onSelectBot, onSearch, onCreateBot, o
         {!rows.length && <p className="inbox-empty">没有找到相关 Bot 或对话</p>}
       </nav>
 
-      {groupError && <div className="inbox-error" role="alert"><span>暂时无法刷新群聊</span><button onClick={onRetryGroups}>重试</button></div>}
+      {groupError && <div className="inbox-error" role="alert"><span>暂时无法刷新群聊</span><button onClick={onRetryGroups} title="暂时无法刷新群聊，点击重试" aria-label="重试"><span>重试</span><IconRefresh className="inbox-compact-retry" size={16} /></button></div>}
 
       <button className="inbox-settings" aria-label="设置" title="设置" aria-current={settingsOpen ? 'page' : undefined} onClick={() => navigate(onOpenSettings)}><IconSettings size={20} /><span>设置</span></button>
     </aside>
@@ -195,12 +207,17 @@ export function Sidebar({ bots, activeBot, onSelectBot, onSearch, onCreateBot, o
       </div>)}
     </div>, document.body)}
 
-    {/* 群列表每 10s 回拉一次：菜单打开期间那个群若已被别处删掉，就地收起菜单，
-        否则会拿着一个已经不存在的群去执行动作 */}
-    {groupMenu && groups.some(group => group.id === groupMenu.group.id) && <GroupContextMenu group={groupMenu.group} anchor={groupMenu.anchor}
-      deleteDisabled={groupSpeaking} onClose={closeGroupMenu}
-      onTogglePin={() => { const group = groupMenu.group; onPinGroup(group.id, !group.pinned); onClose(); }}
-      onRename={() => { onRenameGroup(groupMenu.group.id); onClose(); }}
-      onDelete={() => { onDeleteGroup(groupMenu.group.id); onClose(); }} />}
+    {contextMenu && menuGroup && <SidebarContextMenu key={`group:${menuGroup.id}`} kind="group" pinned={menuGroup.pinned} anchor={contextMenu.anchor}
+      deleteDisabled={groupSpeaking} deleteDisabledReason="讨论进行中，请结束后再删除" onClose={closeContextMenu}
+      onTogglePin={() => { onPinGroup(menuGroup.id, !menuGroup.pinned); onClose(); }}
+      onConfigure={() => { onConfigureGroup(menuGroup.id); onClose(); }}
+      onRename={() => { onRenameGroup(menuGroup.id); onClose(); }}
+      onDelete={() => { onDeleteGroup(menuGroup.id); onClose(); }} />}
+    {contextMenu && menuBot && <SidebarContextMenu key={`bot:${menuBot.id}`} kind="bot" pinned={Boolean(menuBot.pinned)} anchor={contextMenu.anchor}
+      deleteDisabled={menuBot.id === 'soren'} deleteDisabledReason="默认 Soren 需保持可用" onClose={closeContextMenu}
+      onTogglePin={() => { onPinBot(menuBot.id, !menuBot.pinned); onClose(); }}
+      onConfigure={() => { onConfigureBot(menuBot.id); onClose(); }}
+      onRename={() => { onRenameBot(menuBot.id); onClose(); }}
+      onDelete={() => { onDeleteBot(menuBot.id); onClose(); }} />}
   </>;
 }

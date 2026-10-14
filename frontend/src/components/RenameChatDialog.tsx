@@ -1,5 +1,5 @@
 /**
- * 重命名群聊弹窗
+ * Bot 与群聊共用的重命名弹窗
  *
  * 复用 CreateGroupDialog 的同一套外壳与控件（Modal + TextField `.field`），
  * 不新增视觉规格。只有一个输入框，所以不做话题、成员等其余字段。
@@ -12,11 +12,9 @@ import { useState } from 'react';
 import { describeError } from '../services/api';
 import { Button, Modal, TextField } from './ui';
 
-/** 与创建群聊同一个上限，避免改名把侧栏与标题栏撑破 */
-const TITLE_MAX = 50;
-
-export function RenameGroupDialog({ open, initialTitle, onClose, onRename }: {
+export function RenameChatDialog({ open, kind, initialTitle, onClose, onRename }: {
   open: boolean;
+  kind: 'bot' | 'group';
   /** 当前群名，打开时预填；用户在此基础上改，不是从空开始 */
   initialTitle: string;
   onClose: () => void;
@@ -26,13 +24,15 @@ export function RenameGroupDialog({ open, initialTitle, onClose, onRename }: {
   const [titleError, setTitleError] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const label = kind === 'bot' ? 'Bot 名称' : '群名';
+  const maxLength = kind === 'bot' ? 40 : 50;
 
   const canSubmit = title.trim().length > 0 && !submitting;
 
   const submit = async () => {
     const name = title.trim();
-    if (!name) { setTitleError('请填写群名'); return; }
-    if (name.length > TITLE_MAX) { setTitleError(`群名最多 ${TITLE_MAX} 字`); return; }
+    if (!name) { setTitleError(`请填写${label}`); return; }
+    if ([...name].length > maxLength) { setTitleError(`${label}最多 ${maxLength} 字`); return; }
     if (name === initialTitle) { onClose(); return; }
     setTitleError(''); setError(''); setSubmitting(true);
     try {
@@ -43,13 +43,13 @@ export function RenameGroupDialog({ open, initialTitle, onClose, onRename }: {
     }
   };
 
-  return <Modal open={open} onClose={submitting ? () => undefined : onClose} size="sm" title="重命名聊天" footer={<>
+  return <Modal open={open} onClose={submitting ? () => undefined : onClose} size="sm" title={kind === 'bot' ? '重命名 Bot' : '重命名聊天'} footer={<>
     <Button variant="ghost" onClick={onClose} disabled={submitting}>取消</Button>
     <Button variant="primary" onClick={() => void submit()} disabled={!canSubmit} loading={submitting}>保存</Button>
   </>}>
     <div className="flex flex-col gap-2">
-      <TextField label="群名" required aria-label="群名" value={title} error={titleError}
-        placeholder="例如：产品评审"
+      <TextField label={label} required aria-label={label} value={title} error={titleError}
+        placeholder={kind === 'bot' ? '例如：写作助手' : '例如：产品评审'}
         onFocus={event => event.currentTarget.select()}
         onChange={event => { setTitle(event.target.value); if (titleError) setTitleError(''); }} />
       {error && <span role="alert" className="text-xs text-error">{error}</span>}

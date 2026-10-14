@@ -21,7 +21,7 @@ import type { GroupDetailView, GroupSpeakInput, GroupView, SpeakResult } from '.
 /** 群聊的成员上限与轮次上限（后端 group.MinMembers/MaxMembers/MaxRoundsCap） */
 export const GROUP_MIN_MEMBERS = 2;
 export const GROUP_MAX_MEMBERS = 5;
-export const GROUP_MAX_ROUNDS = 6;
+export const GROUP_MAX_ROUNDS = 3;
 export const GROUP_DEFAULT_ROUNDS = 3;
 
 /** 群列表：侧栏用 */
@@ -66,6 +66,7 @@ export function useGroupList(): UseGroupListResult {
 /** 单个群：详情页用 */
 export interface UseGroupChatResult {
   group: GroupView | null;
+  turn?: GroupDetailView['latestTurn'];
   messages: ChatMessage[];
   loadingHistory: boolean;
   /** 一次发言进行中（阻塞式调用，服务端跑完所有轮次才返回） */
@@ -81,6 +82,7 @@ export interface UseGroupChatResult {
 
 export function useGroupChat(groupId: string): UseGroupChatResult {
   const [group, setGroup] = useState<GroupView | null>(null);
+  const [turn, setTurn] = useState<GroupDetailView['latestTurn']>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [speaking, setSpeaking] = useState(false);
@@ -103,6 +105,7 @@ export function useGroupChat(groupId: string): UseGroupChatResult {
       const detail: GroupDetailView = await groupsAPI.detail(groupId);
       if (version !== generation.current) return;
       setGroup(detail);
+      setTurn(detail.latestTurn);
       setMessages((detail.messages ?? []).map(message => toChatMessage(message)));
       setOffline(false);
       const wasRunning = remoteRunning.current;
@@ -129,7 +132,7 @@ export function useGroupChat(groupId: string): UseGroupChatResult {
     lifetime.current += 1;
     busy.current = false; inFlight.current = false; remoteRunning.current = false;
     pending.current = null;
-    setGroup(null); setMessages([]); setSpeaking(false); setCancelling(false);
+    setGroup(null); setTurn(undefined); setMessages([]); setSpeaking(false); setCancelling(false);
     void load();
     return () => { lifetime.current += 1; generation.current += 1; };
   }, [load]);
@@ -152,7 +155,7 @@ export function useGroupChat(groupId: string): UseGroupChatResult {
     if (!text || busy.current || !group) return;
     const request: GroupSpeakInput = pending.current?.content === text ? pending.current : {
       content: text, mentions: resolveMentionIds(text, group.members),
-      mode: group.mode, requestId: crypto.randomUUID(),
+      requestId: crypto.randomUUID(),
     };
     const activeLifetime = lifetime.current;
     const isCurrent = () => lifetime.current === activeLifetime;
@@ -162,6 +165,7 @@ export function useGroupChat(groupId: string): UseGroupChatResult {
     pending.current = request;
     busy.current = true; inFlight.current = true;
     setSpeaking(true); setCancelling(false); setError(null);
+    setTurn({ requestId: request.requestId, mode: 'mention', status: 'running' });
     setMessages(previous => [...previous.filter(item => item.id !== optimisticId), {
       id: optimisticId, conversationId: group.id, role: 'user', content: text,
       timestamp, createdAt: timestamp, updatedAt: timestamp, status: 'sending',
@@ -171,6 +175,7 @@ export function useGroupChat(groupId: string): UseGroupChatResult {
       if (!isCurrent()) return;
       generation.current += 1;
       remoteRunning.current = result.status === 'running';
+      setTurn({ requestId: request.requestId, mode: result.mode ?? 'mention', status: result.status, error: result.error });
       if (!remoteRunning.current) pending.current = null;
       // 同一条服务端消息只能出现一次；内容相同但 ID 不同的消息仍然保留。
       setMessages(previous => {
@@ -211,7 +216,7 @@ export function useGroupChat(groupId: string): UseGroupChatResult {
   }, [groupId, load]);
 
   const reload = useCallback(() => load(), [load]);
-  return { group, messages, loadingHistory, speaking, cancelling, error, offline, send, cancel, reload };
+  return { group, turn, messages, loadingHistory, speaking, cancelling, error, offline, send, cancel, reload };
 }
 
 /* ────────────────────────────────────────────────────────────

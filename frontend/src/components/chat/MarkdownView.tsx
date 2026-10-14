@@ -2,7 +2,7 @@
  * 代码块与 Markdown 渲染
  *
  * 说明：不引入语法高亮库（如 highlight.js/prismjs）以控制体积与离线依赖，
- * 改为在视觉上做出明确区分：深色代码面板 + 语言标签 + 一键复制。
+ * 改为在视觉上做出明确区分：中性代码面板 + 语言标签 + 一键复制。
  */
 
 import { useMemo, useState, type ReactNode } from 'react';
@@ -48,8 +48,7 @@ export function CodeBlock({ code, language, className }: CodeBlockProps) {
   return (
     <div
       className={cn(
-        'group/code my-3 overflow-hidden rounded-md border border-line bg-[#0d0e14]',
-        'dark:bg-[#0b0c11]',
+        'group/code my-3 overflow-hidden rounded-md border border-line bg-surface-2',
         className,
       )}
     >
@@ -76,7 +75,7 @@ export function CodeBlock({ code, language, className }: CodeBlockProps) {
       </div>
 
       <pre className="overflow-x-auto p-3.5">
-        <code className="whitespace-pre font-mono text-xs leading-relaxed text-[#d8dbef]">
+        <code className="whitespace-pre font-mono text-xs leading-relaxed text-ink-1">
           {code}
         </code>
       </pre>

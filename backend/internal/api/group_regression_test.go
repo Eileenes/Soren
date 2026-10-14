@@ -226,7 +226,7 @@ func TestGroupDetailRestoresRunningAndTerminalState(t *testing.T) {
 	close(provider.release)
 	<-done
 	finished := detail()
-	if finished.LatestTurn.Status != "done" || len(finished.Messages) != 3 {
+	if finished.LatestTurn.Status != "done" || len(finished.Messages) != 4 {
 		t.Errorf("missing final history/state: %+v", finished)
 	}
 }

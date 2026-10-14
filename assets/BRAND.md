@@ -1,25 +1,36 @@
 # Soren 品牌资源
 
-Soren 的角色是一只会眨眼的薄荷色小伙伴：圆润小耳朵、两只短脚、微微上扬的笑脸，以及额头的一点光。轮廓与五官均为原创 SVG 路径，可自由缩放。
+Soren 采用黑、白、灰的视觉语言。头像保留圆润轮廓、小耳朵、短脚和眨眼笑脸；黑色轮廓与五官搭配灰白面部，使用轻微灰阶渐变表现体积。
 
-- `logo.svg` / `icon.svg`：透明背景的彩色角色，用于界面、头像、网页。
-- `logo-dark.svg`：适用于深色表面的较亮轮廓版本。
-- `icon-mono.svg`：使用 `currentColor` 的单色轮廓，眼睛与笑脸镂空，用于菜单栏等场景。
-- `icon-1024.png`：透明背景的 1024 × 1024 角色。
-- `app-icon.svg` / `app-icon-1024.png`：薄荷渐变脸部铺满的应用图标，无灰色底板和额外外边距；沿用眨眼、笑脸与额头星光。
-- `frontend/src-tauri/icons/`：由应用图标源文件生成的 PNG、ICNS、ICO 包装资源。
-  macOS ICNS 单独添加透明外边距：1024px 画布内的图标主体为 824px，四周各留 100px；其他尺寸按比例缩放，避免 Dock 图标显得偏大。
+- `logo.svg` / `icon.svg` / `logo-dark.svg`：透明底的完整角色，用于界面、头像与网页。
+- `icon-mono.svg`：使用 `currentColor` 的单色轮廓，用于菜单栏等小尺寸场景。
+- `icon-1024.png`：透明底的 1024 × 1024 角色。
+- `app-icon.svg` / `app-icon-1024.png`：正式应用图标。一体式圆角轮廓内，顶部为左厚右薄的黑色弧面，与灰白脸面自然衔接；保留 Soren 的黑色圆眼、眨眼与微笑，通过中性灰阶光影表现体积。
+- `app-icon-preview.png`：主图及 256 / 128 / 64 / 32 / 16px 多尺寸预览。
+- `frontend/public/`：网页头像、favicon、PWA 与 Apple Touch 图标。
+- `frontend/src-tauri/icons/`：桌面应用 PNG、ICNS、ICO。
+- `mobile/src-tauri/icons/`：移动端与 Android 启动图标。iOS 图标随 Tauri 图标命令同步生成。
 
-## 颜色
+macOS ICNS 保留系统应用常见的透明边距：1024px 画布中的主体为 824px，四周各留 100px。其他尺寸按比例缩放。
 
-深青绿 `#164C45` 是品牌主色；薄荷 `#B8EFDC`、青绿 `#86DCC3` 与奶油微金 `#E7EAB9` 形成面部渐变。浅色背景使用 `#FBFDF2`，深色界面背景使用 `#14181D`。
+## 色彩与使用
 
-界面头像保留完整身体轮廓，应用图标使用大脸特写；头像无需重复加圆形底。主图标最小建议尺寸为 24px；16px 场景使用单色版本可获得更清晰的五官。
+轮廓与五官为 `#111111`；面部为 `#FAFAFA`、`#EEEEEE`、`#DEDEDE`。应用图标底板为 `#FFFFFF`。界面以白色为默认背景，使用黑色主操作、灰色文字和浅灰选中态。深色主题采用中性灰阶。
 
-## 重新生成应用图标
+头像展示完整角色，应用图标展示与外壳融为一体的眨眼笑脸；两者都不叠加彩色底板。其他 Bot 的角色颜色保留，用于区分身份。外部服务图标保留其品牌识别。
+
+## 重新生成
+
+SVG 是原始文件。应用图标用 SVG 渐变、蒙版和柔和投影表现立体感。统一通过 Chrome 渲染后再生成各端资源，保证不同平台使用相同的光影；不要用忽略 SVG 滤镜的渲染器重新导出应用图标。
+
+需要前端 npm 依赖、Chrome，以及 Python Pillow：
 
 ```sh
+node scripts/render-app-icon.mjs
 python3 scripts/gen-icons.py assets/app-icon-1024.png frontend/src-tauri/icons
+npm --prefix mobile run tauri -- icon ../assets/app-icon-1024.png -o src-tauri/icons --ios-color '#FFFFFF'
 ```
 
-此命令需要 Pillow。若安装了 CairoSVG，也可直接把第一个参数改为 `assets/app-icon.svg`。
+`render-app-icon.mjs` 同步网页 SVG、Apple Touch 与 PWA PNG，并更新多尺寸图标预览和品牌预览。透明底角色头像仍可用 CairoSVG 单独导出，不影响应用图标的立体表面。
+
+同步 `assets/logo.svg` 到 `assets/icon.svg`、`assets/logo-dark.svg`、`frontend/public/logo.svg`、`frontend/public/soren-mark.svg`。调整头像面部渐变时，同时更新 `BotAvatar.tsx` 的眨眼遮罩渐变，防止动画时出现色块。

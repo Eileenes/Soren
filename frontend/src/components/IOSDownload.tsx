@@ -49,7 +49,7 @@ export function IOSDownload() {
           </figure>
         )}
       </div>
-      {error && <p role="alert" className="mt-3 text-xs text-red-500">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-xs text-error">{error}</p>}
     </div>
   );
 }

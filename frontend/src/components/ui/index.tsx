@@ -36,7 +36,7 @@ export function Card({
         'relative rounded-lg border bg-surface-2/80 ring-highlight',
         'transition-all duration-base ease-ease',
         selected
-          ? 'border-primary-start/60 shadow-[0_0_0_1px_rgb(102_126_234/0.35),0_10px_30px_-14px_rgb(102_126_234/0.6)]'
+          ? 'border-primary-start/60 ring-1 ring-primary-start/10'
           : 'border-line',
         interactive && 'hover:bg-surface-3/90 hover:border-line-strong hover:-translate-y-0.5',
         className,

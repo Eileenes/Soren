@@ -87,16 +87,12 @@ export function BotAvatar({ avatar, running = false }: { avatar: string; running
         <clipPath id={`${id}-eyes`}><rect {...band} /></clipPath>
         {!face && <>
           <linearGradient id={`${id}-face`} x1="73" y1="47" x2="188" y2="205" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#B8EFDC" /><stop offset=".48" stopColor="#86DCC3" /><stop offset="1" stopColor="#E7EAB9" />
+            <stop stopColor="#FAFAFA" /><stop offset=".48" stopColor="#EEEEEE" /><stop offset="1" stopColor="#DEDEDE" />
           </linearGradient>
-          <radialGradient id={`${id}-glow`} cx="0" cy="0" r="1" gradientTransform="translate(92 65) rotate(70) scale(116 114)" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#F7FFF0" stopOpacity=".68" /><stop offset="1" stopColor="#F7FFF0" stopOpacity="0" />
-          </radialGradient>
         </>}
       </defs>
       <image href={source} width="256" height="256" />
       <rect {...band} fill={face?.color ?? `url(#${id}-face)`} />
-      {!face && <rect {...band} fill={`url(#${id}-glow)`} />}
       <g ref={eyes} className="bot-avatar-eyes" style={{ transformOrigin: `128px ${band.y + band.height / 2}px` }}>
         <image href={source} width="256" height="256" clipPath={`url(#${id}-eyes)`} />
       </g>

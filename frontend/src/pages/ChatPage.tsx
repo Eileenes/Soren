@@ -172,7 +172,7 @@ export function ChatPage({
 
       {/* ── 输入区 ──────────────────────────────────────── */}
       <ChatInput
-        placeholder={bot?.status === 'paused' ? 'Bot 已暂停，请在配置中启用' : `给 ${bot?.name || 'Soren'} 发消息…`}
+        placeholder={bot?.status === 'paused' ? 'Bot 已暂停，请在配置中启用' : bot && bot.id !== 'soren' && !bot.instructions.trim() ? '告诉我，你希望我负责什么…' : `给 ${bot?.name || 'Soren'} 发消息…`}
         onSend={handleSend}
         onStop={stop}
         disabled={bot?.status === 'paused' || offline}

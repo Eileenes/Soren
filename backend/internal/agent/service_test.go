@@ -97,6 +97,15 @@ func TestCollaborationAuthorizationAndSharedIntersection(t *testing.T) {
 	s := fixture(t, p)
 	a := addBot(t, s, "工作")
 	b := addBot(t, s, "创作")
+	// Legacy explicit allowlists remain enforced; new Bots default to collaboration.
+	a.CollaborationAll = false
+	b.CollaborationAll = false
+	if err := s.SaveBot(a, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveBot(b, false); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.Start(a.ID, uuid.NewString(), "写方案", []string{b.ID}); err == nil {
 		t.Fatal("unapproved collaboration allowed")
 	}

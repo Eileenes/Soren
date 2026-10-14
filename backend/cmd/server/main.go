@@ -329,7 +329,7 @@ func appCORSConfig() cors.Config {
 				return false
 			}
 		},
-		AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:  []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:  []string{"Origin", "Content-Type", "Accept", "Authorization", "X-User-ID", "X-Bot-ID"},
 		ExposeHeaders: []string{"Content-Length"},
 	}
