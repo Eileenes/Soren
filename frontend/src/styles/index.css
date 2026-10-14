@@ -778,6 +778,8 @@ button:disabled { cursor: not-allowed; }
 .app-select-trigger { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; min-height:40px; text-align:left; cursor:pointer; }
 .app-select-trigger > svg { flex-shrink:0; color:rgb(var(--soren-ink-3)); }
 .app-select-menu { position:fixed; z-index:100; overflow-y:auto; overscroll-behavior:contain; padding:6px; border-radius:12px; border:1px solid rgb(var(--soren-line)); background:rgb(var(--soren-surface-1)); box-shadow:0 12px 40px -8px #0003; }
+/* 菜单使用当前选项的高亮表示焦点，不给整个浮层加外框。 */
+.app-select-menu[role="menu"]:focus { outline:none; }
 .app-select-option { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:38px; padding:9px 11px; border-radius:7px; font-size:13px; line-height:1.4; cursor:pointer; color:rgb(var(--soren-ink-1)); }
 .app-select-option > div { min-width:0; overflow-wrap:anywhere; }
 .app-select-option > svg { flex-shrink:0; }
