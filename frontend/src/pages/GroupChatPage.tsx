@@ -62,7 +62,7 @@ export function GroupChatRoute({ groupId, bots, offline, onRetryConnection, retr
 }
 
 export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying = false }: GroupChatPageProps) {
-  const { group, messages, loadingHistory, speaking, cancelling, error, send, cancel, reload } = chat;
+  const { group, turn, messages, loadingHistory, speaking, cancelling, error, send, cancel, reload } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
   const { atBottom, scrollToBottom } = useScrollPosition(scrollRef, BOTTOM_THRESHOLD);
   /**
@@ -75,6 +75,8 @@ export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying
   const stickToBottom = useRef(true);
   /** mention 模式额外显示各位发言人的思考占位 */
   const [targets, setTargets] = useState<string[]>([]);
+  const [dismissedTurn, setDismissedTurn] = useState<string>();
+  const canContinue = !speaking && turn?.mode === 'auto' && ['done', 'cancelled'].includes(turn.status) && dismissedTurn !== turn.requestId;
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -124,7 +126,7 @@ export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying
   const isEmpty = messages.length === 0 && !loadingHistory && !error;
   const showStrip = Boolean(group) && speaking;
 
-  const pendingMessages: ChatMessage[] = group?.mode !== 'auto' && speaking
+  const pendingMessages: ChatMessage[] = turn?.mode !== 'auto' && speaking
     ? members.filter(member => targets.includes(member.botId)).map(member => ({
       id: `pending-${member.botId}`,
       conversationId: '',
@@ -200,7 +202,7 @@ export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying
         above={showStrip && group ? (
           <div className="mb-2 flex h-9 items-center gap-2 text-ink-2">
             <TypingDots />
-            <span className="text-xs tabular-nums">{group.mode === 'auto' ? `讨论中 · 最多 ${group.maxRounds} 轮` : '正在回复'}</span>
+            <span className="text-xs tabular-nums">{turn?.mode === 'auto' ? '讨论中 · 最多 3 轮' : '正在回复'}</span>
             <span className="flex-1" />
             <IconButton
               label="中止讨论"
@@ -211,7 +213,11 @@ export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying
               <IconStop size={16} />
             </IconButton>
           </div>
-        ) : undefined}
+        ) : canContinue ? <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
+          <span className="mr-auto text-sm text-ink-2">{turn?.status === 'cancelled' ? '讨论已中止，要继续吗？' : '这次讨论结束了，要继续吗？'}</span>
+          <Button size="sm" variant="ghost" onClick={() => setDismissedTurn(turn?.requestId)}>暂时结束</Button>
+          <Button size="sm" disabled={offline} onClick={() => handleSend('请大家继续讨论，最多三轮。')}>继续讨论</Button>
+        </div> : undefined}
       />
     </div>
   );

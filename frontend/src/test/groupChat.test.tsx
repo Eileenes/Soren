@@ -390,7 +390,7 @@ describe('@ 提及补全', () => {
     const mention = within(bubble).getByText('@架构师');
     // 纯文字强调：颜色 + 字重，没有描边与背景块
     expect(mention.className).toContain('font-semibold');
-    expect(mention.className).toContain('text-[rgb(var(--accent))]');
+    expect(mention.className).toContain('text-[var(--accent)]');
     expect(mention.className).not.toMatch(/border|rounded/);
     expect(bubble.textContent).toContain('dev@example.com');
     expect(bubble.querySelectorAll('span')).toHaveLength(1);
@@ -555,7 +555,8 @@ describe('群聊发言', () => {
     expect(apiMock.groupSpeak).toHaveBeenCalledTimes(1);
     const [groupId, input] = apiMock.groupSpeak.mock.calls[0];
     expect(groupId).toBe('g1');
-    expect(input).toMatchObject({ content: '@架构师 并发够用吗', mentions: ['arch'], mode: 'auto' });
+    expect(input).toMatchObject({ content: '@架构师 并发够用吗', mentions: ['arch'] });
+    expect(input).not.toHaveProperty('mode');
     // requestId 必填，且是每次发言的新 uuid
     expect(String(input.requestId)).toMatch(/^[0-9a-f-]{36}$/);
   });
@@ -585,7 +586,7 @@ describe('群聊发言', () => {
     expect(apiMock.groupSpeak.mock.calls[0][1].requestId).not.toBe(apiMock.groupSpeak.mock.calls[1][1].requestId);
   });
 
-  it('auto 模式讨论中显示状态条与中止按钮，此时右键菜单的删除项禁用', async () => {
+  it('旧 auto 群的普通提问显示回复状态条与中止按钮，此时右键菜单的删除项禁用', async () => {
     let release: (() => void) | null = null;
     const { user, main } = await openAutoGroup(() => new Promise(resolve => {
       release = () => resolve({
@@ -601,7 +602,7 @@ describe('群聊发言', () => {
     const strip = await within(main).findByRole('button', { name: '中止讨论' });
     expect(strip.className).toContain('control-icon');
     expect(strip).toHaveClass('!text-error');
-    expect(within(main).getByText('讨论中 · 最多 3 轮')).toBeInTheDocument();
+    expect(within(main).getByText('正在回复')).toBeInTheDocument();
     // 讨论进行中禁止删除：删除会与在途的讨论级联清理冲突
     const busy = await openGroupMenu(/产品评审/);
     const deleteItem = within(busy).getByRole('menuitem', { name: '删除' });
@@ -681,7 +682,7 @@ describe('群项右键菜单', () => {
     expect(document.querySelector('.inbox-heading')).toBeNull();
   });
 
-  it('右键群项弹出三项菜单，左键单击仍然只是打开群', async () => {
+  it('右键群项弹出四项菜单，左键单击仍然只是打开群', async () => {
     apiMock.groupList.mockResolvedValue([groupView()]);
     apiMock.groupDetail.mockResolvedValue(groupView({ messages: [message({ id: 'm1', role: 'user', content: '群里的问题' })] }));
     const user = userEvent.setup();
@@ -694,7 +695,7 @@ describe('群项右键菜单', () => {
 
     // 右键：弹出三项，菜单本体挂在 body 上
     const menu = await openGroupMenu(/产品评审/);
-    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['置顶', '重命名聊天', '删除']);
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['置顶', '配置群聊', '重命名聊天', '删除']);
     expect(menu.className).toContain('app-select-menu');
     expect(within(menu).getAllByRole('menuitem').every(item => item.className.includes('app-select-option'))).toBe(true);
   });
@@ -803,11 +804,11 @@ describe('群项右键菜单', () => {
     await user.keyboard('{ArrowDown}');
     expect(within(menu).getAllByRole('menuitem')[1].className).toContain('is-active');
     await user.keyboard('{Enter}');
-    // 当前项是「重命名聊天」，回车即打开重命名弹窗
-    expect(await screen.findByRole('dialog', { name: '重命名聊天' })).toBeInTheDocument();
+    // 当前项是「配置群聊」，回车即打开配置弹窗
+    expect(await screen.findByRole('dialog', { name: '配置群聊' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '重命名聊天' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '配置群聊' })).not.toBeInTheDocument());
     await openGroupMenu(/产品评审/);
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu', { name: '群聊操作' })).not.toBeInTheDocument();
@@ -972,7 +973,7 @@ describe('群聊选中项持久化与侧栏', () => {
 });
 
 describe('创建群聊', () => {
-  it('选满成员与模式后创建，成功即进入该群', async () => {
+  it('选择成员后创建，无需选择模式，成功即进入该群', async () => {
     const created = groupView({ id: 'g9', title: '新的群' });
     apiMock.groupList.mockResolvedValue([]);
     apiMock.groupCreate.mockResolvedValue(created);
@@ -1001,12 +1002,12 @@ describe('创建群聊', () => {
 
     // mention 模式不暴露轮次上限（该模式下该值无效）
     expect(within(dialog).queryByText('轮次上限')).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: '自主' }));
-    expect(within(dialog).getByText('轮次上限')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '自主' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('模式')).not.toBeInTheDocument();
 
     await user.click(submit);
     await waitFor(() => expect(apiMock.groupCreate).toHaveBeenCalledWith({
-      title: '新的群', topic: '', botIds: ['arch', 'critic'], mode: 'auto', maxRounds: 3,
+      title: '新的群', topic: '', botIds: ['arch', 'critic'], mode: 'mention', maxRounds: 3,
     }));
     expect(localStorage.getItem('soren.active-group')).toBe('g9');
     await waitFor(() => expect(screen.getByRole('main')).toHaveTextContent('新版本的取舍'));
@@ -1211,5 +1212,46 @@ describe('群聊审查回归', () => {
     await act(async () => { await result.current.send('问题'); });
     await act(async () => { await result.current.send('问题'); });
     expect(apiMock.groupSpeak.mock.calls[0][1].requestId).not.toBe(apiMock.groupSpeak.mock.calls[1][1].requestId);
+  });
+});
+
+describe('群聊配置与讨论继续', () => {
+  it('右键配置编辑群名、主题和成员，不提交模式设置', async () => {
+    apiMock.groupList.mockResolvedValue([groupView()]);
+    apiMock.groupDetail.mockResolvedValue(groupView({ messages: [] }));
+    apiMock.groupUpdate.mockResolvedValue(groupView());
+    const user = userEvent.setup(); render(<App />);
+    const menu = await openGroupMenu(/产品评审/);
+    await user.click(within(menu).getByRole('menuitem', { name: '配置群聊' }));
+    const dialog = screen.getByRole('dialog', { name: '配置群聊' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '关闭' })).toHaveFocus());
+    const title = within(dialog).getByRole('textbox', { name: '群名' });
+    await user.clear(title); await user.type(title, '新的评审');
+    const topic = within(dialog).getByRole('textbox', { name: '群主题' });
+    await user.clear(topic); await user.type(topic, '发布计划');
+    await user.click(within(dialog).getByRole('button', { name: '保存配置' }));
+    await waitFor(() => expect(apiMock.groupUpdate).toHaveBeenCalledWith('g1', { title: '新的评审', topic: '发布计划', botIds: MEMBERS.map(member => member.botId) }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('恢复已结束的讨论时等待用户点击继续，每次继续使用新的请求标识', async () => {
+    apiMock.groupList.mockResolvedValue([groupView()]);
+    apiMock.groupDetail.mockResolvedValue(groupView({ messages: [message({ id: 'notice', role: 'system', content: '本次讨论已结束，要继续讨论吗？' })], latestTurn: { requestId: 'previous', status: 'done', mode: 'auto' } }));
+    apiMock.groupSpeak.mockImplementation(async (_id, input) => ({ conversationId: 'c1', mode: 'auto', status: 'done', error: '', messages: [message({ id: input.requestId, role: 'system', content: '新一轮讨论结束' })] }));
+    const user = userEvent.setup(); render(<App />);
+    await user.click(await waitNavRow(/产品评审/));
+    await screen.findByRole('button', { name: '继续讨论' });
+    expect(apiMock.groupSpeak).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '继续讨论' }));
+    await waitFor(() => expect(apiMock.groupSpeak).toHaveBeenCalledTimes(1));
+    const first = apiMock.groupSpeak.mock.calls[0][1];
+    expect(first.content).toBe('请大家继续讨论，最多三轮。');
+    expect(first.requestId).not.toBe('previous');
+    await user.click(await screen.findByRole('button', { name: '继续讨论' }));
+    await waitFor(() => expect(apiMock.groupSpeak).toHaveBeenCalledTimes(2));
+    expect(apiMock.groupSpeak.mock.calls[1][1].requestId).not.toBe(first.requestId);
+    await user.click(await screen.findByRole('button', { name: '暂时结束' }));
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
+    expect(apiMock.groupSpeak).toHaveBeenCalledTimes(2);
   });
 });

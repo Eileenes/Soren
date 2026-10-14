@@ -448,11 +448,11 @@ func TestGroupAutoModeCallsLLMOncePerBotPerRound(t *testing.T) {
 	}
 	var result group.SpeakResult
 	decodeGroup(t, recorder, &result)
-	if len(result.Messages) != 1+9 {
-		t.Fatalf("期望 10 条消息（用户 1 + 发言 9），收到 %d", len(result.Messages))
+	if len(result.Messages) != 1+9+1 {
+		t.Fatalf("期望 11 条消息（用户 1 + 发言 9 + 结束提示 1），收到 %d", len(result.Messages))
 	}
-	if got := len(storedMessages(t, h, id)); got != 10 {
-		t.Errorf("期望落库 10 条消息，实际 %d", got)
+	if got := len(storedMessages(t, h, id)); got != 11 {
+		t.Errorf("期望落库 11 条消息，实际 %d", got)
 	}
 }
 
@@ -1107,14 +1107,14 @@ func TestGroupAutoModeEndsEarlyWhenAllBotsSkip(t *testing.T) {
 	if result.Error != "" {
 		t.Errorf("弃权不是失败，error 应为空，实际 %q", result.Error)
 	}
-	if len(result.Messages) != 1 || result.Messages[0].Role != "user" {
-		t.Errorf("响应里只应有用户那一条，实际 %d 条", len(result.Messages))
+	if len(result.Messages) != 2 || result.Messages[0].Role != "user" || result.Messages[1].Role != "system" {
+		t.Errorf("响应里应有用户消息和结束提示，实际 %d 条", len(result.Messages))
 	}
 
 	// [SKIP] 不落库
 	stored := storedMessages(t, h, id)
-	if len(stored) != 1 || stored[0].Role != "user" {
-		t.Fatalf("期望只落库 1 条用户消息，实际 %d 条", len(stored))
+	if len(stored) != 2 || stored[0].Role != "user" || stored[1].Role != "system" {
+		t.Fatalf("期望落库用户消息和结束提示，实际 %d 条", len(stored))
 	}
 	for _, message := range stored {
 		if message.Role == "assistant" || message.SpeakerBotID != "" {
@@ -1155,8 +1155,8 @@ func TestGroupAutoModeWithPartialSkip(t *testing.T) {
 		}
 
 		stored := storedMessages(t, h, id)
-		if len(stored) != 2 {
-			t.Fatalf("期望用户消息 1 条 + 发言 1 条 = 2，实际 %d 条", len(stored))
+		if len(stored) != 3 {
+			t.Fatalf("期望用户消息 1 条 + 发言 1 条 + 结束提示 1 条 = 3，实际 %d 条", len(stored))
 		}
 		if stored[1].SpeakerBotID != ids[1] || stored[1].SpeakerName != "研发" {
 			t.Errorf("只有非弃权的 Bot 发言应落库，实际 speaker=%q name=%q", stored[1].SpeakerBotID, stored[1].SpeakerName)
@@ -1185,7 +1185,7 @@ func TestGroupAutoModeWithPartialSkip(t *testing.T) {
 		}
 
 		stored := storedMessages(t, h, id)
-		if len(stored) != 2 {
+		if len(stored) != 3 {
 			t.Fatalf("期望只有 1 条发言落库，实际共 %d 条", len(stored))
 		}
 		if stored[1].Content != "研发第一轮的观点" {
@@ -1210,8 +1210,8 @@ func TestGroupDoesNotSkipWhenTokenIsOnlySubstring(t *testing.T) {
 	}
 
 	stored := storedMessages(t, h, id)
-	if len(stored) != 3 {
-		t.Fatalf("期望用户消息 1 条 + 2 条发言 = 3，实际 %d 条", len(stored))
+	if len(stored) != 4 {
+		t.Fatalf("期望用户消息 1 条 + 2 条发言 + 结束提示 1 条 = 4，实际 %d 条", len(stored))
 	}
 	for _, message := range stored[1:] {
 		if strings.TrimSpace(message.Content) == "[SKIP]" {

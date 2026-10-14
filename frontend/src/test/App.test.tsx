@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ── mock 后端 API：默认模拟"后端未启动" ──────────────────
@@ -45,6 +45,7 @@ const apiMock = vi.hoisted(() => {
     sendMessage: vi.fn(),
     botList: vi.fn(),
     botSave: vi.fn(),
+    botUpdateNavigation: vi.fn(),
     runs: vi.fn(),
     memoryList: vi.fn(),
     memorySearch: vi.fn(),
@@ -102,7 +103,7 @@ vi.mock('../services/api', () => {
 
 vi.mock('../services/agents', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/agents')>();
-  return { ...actual, agentsAPI: { ...actual.agentsAPI, list: apiMock.botList, runs: apiMock.runs, save: apiMock.botSave } };
+  return { ...actual, agentsAPI: { ...actual.agentsAPI, list: apiMock.botList, runs: apiMock.runs, save: apiMock.botSave, updateNavigation: apiMock.botUpdateNavigation } };
 });
 
 // 群路由与 Bot 路由不在同一层，单独 mock 避免测试依赖真实后端
@@ -170,6 +171,7 @@ beforeEach(() => {
   resetSettings();
   localStorage.removeItem('soren.active-bot');
   localStorage.removeItem('soren.active-group');
+  localStorage.removeItem('soren.sidebar-collapsed');
   apiMock.botList.mockResolvedValue([DEFAULT_BOT]);
   apiMock.runs.mockResolvedValue([]);
   apiMock.groupList.mockResolvedValue([]);
@@ -178,6 +180,54 @@ beforeEach(() => {
 });
 
 describe('应用外壳', () => {
+  it('收起侧栏后仍可切换 Bot 和打开设置，重启后恢复并可用键盘展开', async () => {
+    mockOnlineEmpty();
+    apiMock.botList.mockResolvedValue([DEFAULT_BOT, { ...DEFAULT_BOT, id: 'helper', name: '小助手', avatar: 'robo' }]);
+    const user = userEvent.setup();
+    const first = render(<App />);
+    await screen.findByRole('button', { name: '小助手' });
+    const toggle = screen.getByRole('button', { name: '收起侧栏' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user.click(toggle);
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveFocus();
+    expect(localStorage.getItem('soren.sidebar-collapsed')).toBe('true');
+
+    await user.click(screen.getByRole('button', { name: '小助手' }));
+    expect(await screen.findByRole('button', { name: '小助手' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveAttribute('aria-expanded', 'false');
+    await user.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByRole('heading', { name: '模型' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toBeInTheDocument();
+
+    first.unmount();
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '小助手' })).toHaveAttribute('aria-current', 'page'));
+    screen.getByRole('button', { name: '展开侧栏' }).focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: '收起侧栏' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: '收起侧栏' })).toHaveFocus();
+    expect(localStorage.getItem('soren.sidebar-collapsed')).toBe('false');
+  });
+
+  it('偏好无法写入时仍能收起侧栏，切换 Bot 不丢失状态', async () => {
+    mockOnlineEmpty();
+    apiMock.botList.mockResolvedValue([DEFAULT_BOT, { ...DEFAULT_BOT, id: 'helper', name: '小助手', avatar: 'robo' }]);
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('button', { name: '小助手' });
+    const original = Storage.prototype.setItem;
+    const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === 'soren.sidebar-collapsed') throw new DOMException('Storage unavailable', 'QuotaExceededError');
+      original.call(this, key, value);
+    });
+    try {
+      await user.click(screen.getByRole('button', { name: '收起侧栏' }));
+      await user.click(screen.getByRole('button', { name: '小助手' }));
+      expect(await screen.findByRole('button', { name: '小助手' })).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByRole('button', { name: '展开侧栏' })).toHaveAttribute('aria-expanded', 'false');
+    } finally { storage.mockRestore(); }
+  });
+
   it('在没有任何后端的情况下也能渲染出完整的首屏，不白屏', async () => {
     mockOffline();
     render(<App />);
@@ -356,7 +406,7 @@ describe('应用外壳', () => {
 
   it('侧栏加号弹出两项菜单，创建 Bot 后出现在列表并进入它的聊天', async () => {
     mockOnlineEmpty();
-    const created = { ...DEFAULT_BOT, id: 'writer', name: '写作助手', instructions: '帮助写作', avatar: 'iceberg' };
+    const created = { ...DEFAULT_BOT, id: 'writer', name: '写作助手', instructions: '', avatar: 'iceberg' };
     apiMock.botSave.mockImplementation(async () => { apiMock.botList.mockResolvedValue([DEFAULT_BOT, created]); return created; });
     const user = userEvent.setup(); render(<App />);
     const trigger = screen.getByRole('button', { name: '创建' });
@@ -370,10 +420,14 @@ describe('应用外壳', () => {
     // otherwise interrupt userEvent midway through a field on a fast test run.
     await waitFor(() => expect(within(editor).getByRole('button', { name: '关闭' })).toHaveFocus());
     await user.type(within(editor).getByRole('textbox', { name: '名称' }), '写作助手');
-    await user.type(within(editor).getByRole('textbox', { name: '职责' }), '帮助写作');
-    await user.click(within(editor).getByRole('button', { name: '保存 Bot' }));
+    expect(within(editor).queryByRole('textbox', { name: '职责' })).not.toBeInTheDocument();
+    expect(within(editor).queryByRole('textbox', { name: '模型' })).not.toBeInTheDocument();
+    expect(within(editor).queryByRole('switch', { name: '允许协作' })).not.toBeInTheDocument();
+    await user.click(within(editor).getByRole('button', { name: '创建 Bot' }));
     expect(await screen.findByRole('button', { name: '写作助手' })).toHaveAttribute('aria-current', 'page');
-    expect(apiMock.botSave).toHaveBeenCalledWith(expect.objectContaining({ name: '写作助手', instructions: '帮助写作' }), true);
+    expect(apiMock.botSave).toHaveBeenCalledWith(expect.objectContaining({ name: '写作助手', instructions: '', collaborationEnabled: true, collaborationAll: true, model: '' }), true);
+    expect(await screen.findByRole('heading', { name: '你好，我的职责是什么？' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '安排今天' })).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(localStorage.getItem('soren.active-bot')).toBe('writer');
   });
@@ -390,6 +444,109 @@ describe('应用外壳', () => {
   });
 });
 
+
+describe('Bot 侧栏右键操作', () => {
+  const helper = { ...DEFAULT_BOT, id: 'helper', name: '小助手', avatar: 'robo', instructions: '帮助写作', version: 4 };
+  const openMenu = async (name = '小助手') => {
+    const row = await within(screen.getByRole('navigation', { name: 'Bot 导航' })).findByRole('button', { name });
+    fireEvent.contextMenu(row, { clientX: 100, clientY: 180 });
+    return screen.findByRole('menu', { name: 'Bot 操作' });
+  };
+  beforeEach(() => {
+    mockOnlineEmpty();
+    apiMock.botList.mockResolvedValue([DEFAULT_BOT, helper]);
+    apiMock.botUpdateNavigation.mockReset();
+  });
+
+  it('右键非当前 Bot 不切换对话，置顶和取消置顶发送局部更新并跟随后端排序', async () => {
+    apiMock.botUpdateNavigation.mockImplementation(async (_id, patch) => {
+      const updated = { ...helper, pinned: patch.pinned, version: patch.version + 1 };
+      apiMock.botList.mockResolvedValue(patch.pinned ? [updated, DEFAULT_BOT] : [DEFAULT_BOT, updated]);
+      return updated;
+    });
+    const user = userEvent.setup(); render(<App />);
+    const menu = await openMenu();
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['置顶', '配置 Bot', '重命名 Bot', '删除']);
+    expect(screen.getByRole('button', { name: 'Soren' })).toHaveAttribute('aria-current', 'page');
+    await user.click(within(menu).getByRole('menuitem', { name: '置顶' }));
+    await waitFor(() => expect(apiMock.botUpdateNavigation).toHaveBeenCalledWith('helper', { version: 4, pinned: true }));
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Bot 导航' })).getAllByRole('button')[0]).toHaveAccessibleName('小助手'));
+    const pinned = await openMenu();
+    await user.click(within(pinned).getByRole('menuitem', { name: '取消置顶' }));
+    await waitFor(() => expect(apiMock.botUpdateNavigation).toHaveBeenLastCalledWith('helper', { version: 5, pinned: false }));
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Bot 导航' })).getAllByRole('button')[0]).toHaveAccessibleName('Soren'));
+  });
+
+  it('重命名失败保留表单，成功后更新名称并保留职责', async () => {
+    apiMock.botUpdateNavigation.mockRejectedValueOnce(new Error('内容已在其他窗口更新，请刷新后重试')).mockImplementation(async (_id, patch) => {
+      const updated = { ...helper, name: patch.name, version: 5 };
+      apiMock.botList.mockResolvedValue([DEFAULT_BOT, updated]);
+      return updated;
+    });
+    const user = userEvent.setup(); render(<App />);
+    await user.click(within(await openMenu()).getByRole('menuitem', { name: '重命名 Bot' }));
+    const dialog = screen.getByRole('dialog', { name: '重命名 Bot' });
+    const input = within(dialog).getByRole('textbox', { name: 'Bot 名称' });
+    expect(input).toHaveValue('小助手');
+    fireEvent.change(input, { target: { value: '写作伙伴' } });
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('内容已在其他窗口更新');
+    expect(screen.getByRole('button', { name: '小助手' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+    expect(await screen.findByRole('button', { name: '写作伙伴' })).toBeInTheDocument();
+    expect(apiMock.botUpdateNavigation).toHaveBeenLastCalledWith('helper', { version: 4, name: '写作伙伴' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])('删除 Bot 需确认并归档，当前选中=%s 时保留或回退到 Soren', async selected => {
+    apiMock.botUpdateNavigation.mockImplementation(async () => {
+      const archived = { ...helper, status: 'archived', version: 5 };
+      apiMock.botList.mockResolvedValue([DEFAULT_BOT, archived]);
+      return archived;
+    });
+    const user = userEvent.setup(); render(<App />);
+    if (selected) await user.click(await screen.findByRole('button', { name: '小助手' }));
+    await user.click(within(await openMenu()).getByRole('menuitem', { name: '删除' }));
+    const dialog = screen.getByRole('dialog', { name: '删除 Bot' });
+    expect(dialog).toHaveTextContent('对话和记忆会保留');
+    expect(apiMock.botUpdateNavigation).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: '删除 Bot' }));
+    await waitFor(() => expect(apiMock.botUpdateNavigation).toHaveBeenCalledWith('helper', { version: 4, archive: true }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: '小助手' })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Soren' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('归档失败时保留目标 Bot 和错误提示，可取消', async () => {
+    apiMock.botUpdateNavigation.mockRejectedValue(new Error('服务不可用'));
+    const user = userEvent.setup(); render(<App />);
+    await user.click(within(await openMenu()).getByRole('menuitem', { name: '删除' }));
+    const dialog = screen.getByRole('dialog', { name: '删除 Bot' });
+    await user.click(within(dialog).getByRole('button', { name: '删除 Bot' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('服务不可用');
+    expect(screen.getByRole('button', { name: '小助手' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: '取消' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('收起状态可用键盘打开菜单，默认 Soren 禁止删除且焦点跳过禁用项', async () => {
+    const user = userEvent.setup(); render(<App />);
+    await screen.findByRole('button', { name: '小助手' });
+    await user.click(screen.getByRole('button', { name: '收起侧栏' }));
+    const row = screen.getByRole('button', { name: 'Soren' });
+    row.focus();
+    await user.keyboard('{Shift>}{F10}{/Shift}');
+    const menu = screen.getByRole('menu', { name: 'Bot 操作' });
+    expect(within(menu).getByRole('menuitem', { name: '删除' })).toHaveAttribute('aria-disabled', 'true');
+    await user.keyboard('{End}');
+    expect(within(menu).getByRole('menuitem', { name: '重命名 Bot' })).toHaveClass('is-active');
+    await user.keyboard('{ArrowDown}');
+    expect(within(menu).getByRole('menuitem', { name: '置顶' })).toHaveClass('is-active');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(row).toHaveFocus();
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toBeInTheDocument();
+  });
+});
 
 describe('首次使用引导', () => {
   it('首次展示，跳过后不重复弹出，仍可主动重新打开', async () => {
@@ -425,5 +582,26 @@ describe('首次使用引导', () => {
     expect((await screen.findByRole('textbox', { name: '任务目标' }) as HTMLTextAreaElement).value).toContain('三天学习计划');
     expect(screen.getByText('尚未配置模型，任务将使用演示模式。')).toBeInTheDocument();
     expect(apiMock.sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('Bot 右键配置', () => {
+  it('右键非当前 Bot 打开其配置并保存职责，不改变当前对话', async () => {
+    mockOnlineEmpty();
+    const helper = { ...DEFAULT_BOT, id: 'helper', name: '写作助手', instructions: '起草邮件' };
+    apiMock.botList.mockResolvedValue([DEFAULT_BOT, helper]);
+    apiMock.botSave.mockImplementation(async (bot) => ({ ...bot, version: 2 }));
+    const user = userEvent.setup();
+    render(<App />);
+    fireEvent.contextMenu(await screen.findByRole('button', { name: '写作助手' }));
+    await user.click(within(screen.getByRole('menu', { name: 'Bot 操作' })).getByRole('menuitem', { name: '配置 Bot' }));
+    const dialog = await screen.findByRole('dialog', { name: '配置 Bot' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '关闭' })).toHaveFocus());
+    expect(within(dialog).getByRole('textbox', { name: '名称' })).toHaveValue('写作助手');
+    const duties = within(dialog).getByRole('textbox', { name: '职责' });
+    await user.clear(duties); await user.type(duties, '负责客户邮件');
+    await user.click(within(dialog).getByRole('button', { name: '保存 Bot' }));
+    await waitFor(() => expect(apiMock.botSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'helper', instructions: '负责客户邮件' }), false));
+    expect(screen.getByRole('button', { name: 'Soren' })).toHaveAttribute('aria-current', 'page');
   });
 });

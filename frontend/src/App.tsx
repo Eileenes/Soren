@@ -19,7 +19,7 @@ import { SettingsNav } from './components/layout/SettingsNav';
 import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
 import { BotEditor, blankBot } from './components/BotEditor';
 import { CreateGroupDialog } from './components/CreateGroupDialog';
-import { RenameGroupDialog } from './components/RenameGroupDialog';
+import { RenameChatDialog } from './components/RenameChatDialog';
 import { useBotInbox, type BotInbox } from './hooks/useBotInbox';
 import { useBotRuns } from './hooks/useBotRuns';
 import { useGroupList } from './hooks/useGroupChat';
@@ -58,13 +58,15 @@ const VIEW_TITLES: Record<ViewId, string> = {
   settings: '通用设置', history: '对话记录',
 };
 
-function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, onSelectGroup, onReloadGroups, onReloadBots, botError, inbox, onReloadInbox, initialConversation, onBotCreated, onGroupCreated }: {
+function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, onSelectGroup, onReloadGroups, onReloadBots, botError, inbox, onReloadInbox, initialConversation, onBotCreated, onBotUpdated, onGroupCreated, sidebarCollapsed, onSidebarCollapsedChange }: {
   bots: Bot[]; activeBot: Bot; sel: Selection; groups: GroupView[]; groupsError: string | null;
   onSelectBot: (id: string, conversationId?: string) => void; onSelectGroup: (id: string) => void;
   onReloadGroups: () => Promise<void>; onReloadBots: () => Promise<void>;
   botError: string | null; inbox: Record<string, BotInbox>; onReloadInbox: () => Promise<void>;
   initialConversation: string | null; onBotCreated: (bot: Bot) => void;
+  onBotUpdated: (bot: Bot) => void;
   onGroupCreated: (id: string) => void;
+  sidebarCollapsed: boolean; onSidebarCollapsedChange: (collapsed: boolean) => void;
 }) {
   const toast = useToast();
   const { settings, setLLM, setGeneral } = useSettings();
@@ -75,7 +77,14 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
   const closeSidebar = useCallback(() => setMobileOpen(false), []);
   const [newBot, setNewBot] = useState<Bot | null>(null);
   const [newGroup, setNewGroup] = useState(false);
+  const [editBot, setEditBot] = useState<Bot | null>(null);
+  const [editGroup, setEditGroup] = useState<GroupView | null>(null);
+  const [groupRevision, setGroupRevision] = useState(0);
   const [renameGroup, setRenameGroup] = useState<GroupView | null>(null);
+  const [renameBot, setRenameBot] = useState<Bot | null>(null);
+  const [deleteBot, setDeleteBot] = useState<Bot | null>(null);
+  const [deletingBot, setDeletingBot] = useState(false);
+  const [deleteBotError, setDeleteBotError] = useState('');
   const [deleteGroup, setDeleteGroup] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -164,6 +173,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
       void conversations.reload();
       void memories.reload();
       void onReloadInbox();
+      void onReloadBots();
     }
     previousLoading.current = chat.loading;
   }, [chat.loading, chat.error, conversations.reload, memories.reload, onReloadInbox]);
@@ -245,12 +255,49 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
     setRenameGroup(null);
   }, [onReloadGroups]);
 
+  const handlePinBot = async (id: string, pinned: boolean) => {
+    const target = bots.find(bot => bot.id === id);
+    if (!target) return;
+    try {
+      onBotUpdated(await agentsAPI.updateNavigation(id, { version: target.version, pinned }));
+      await onReloadBots();
+    } catch (err) {
+      toast.error(pinned ? '置顶失败' : '取消置顶失败', describeError(err));
+    }
+  };
+  const handleRenameBot = async (target: Bot, name: string) => {
+    onBotUpdated(await agentsAPI.updateNavigation(target.id, { version: target.version, name }));
+    setRenameBot(null);
+    await onReloadBots();
+    await onReloadGroups();
+  };
+  const confirmDeleteBot = async () => {
+    if (!deleteBot) return;
+    setDeletingBot(true); setDeleteBotError('');
+    try {
+      const archived = await agentsAPI.updateNavigation(deleteBot.id, { version: deleteBot.version, archive: true });
+      setDeleteBot(null);
+      onBotUpdated(archived);
+      await onReloadBots();
+      await onReloadGroups();
+    } catch (err) {
+      setDeleteBotError(describeError(err));
+    } finally { setDeletingBot(false); }
+  };
+
   return (
     <div className={'app-shell ' + (isDesktop ? 'desktop-runtime' : '')}>
       {/* ── 侧边栏 ──────────────────────────────────────── */}
       <Sidebar
         bots={bots}
         activeBot={activeBot}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={onSidebarCollapsedChange}
+        onPinBot={(id, pinned) => { void handlePinBot(id, pinned); }}
+        onConfigureBot={id => setEditBot(bots.find(bot => bot.id === id) ?? null)}
+        onConfigureGroup={id => setEditGroup(groups.find(group => group.id === id) ?? null)}
+        onRenameBot={id => setRenameBot(bots.find(bot => bot.id === id) ?? null)}
+        onDeleteBot={id => { setDeleteBotError(''); setDeleteBot(bots.find(bot => bot.id === id) ?? null); }}
         onSelectBot={id => { if (isGroup || id !== activeBot.id) onSelectBot(id); else if (!chat.loading && inbox[id]?.latestId && chat.conversationId !== inbox[id].latestId) handleSelectConversation(inbox[id].latestId!); setView('chat'); }}
         onSearch={() => setSearchOpen(true)}
         onCreateBot={() => setNewBot(blankBot())}
@@ -278,11 +325,29 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
 
       {newBot && <BotEditor initial={newBot} bots={bots} onClose={() => setNewBot(null)} onSaved={async bot => { setNewBot(null); onBotCreated(bot); setView('chat'); }} />}
 
+      {editBot && <BotEditor initial={editBot} bots={bots} onClose={() => setEditBot(null)} onSaved={async bot => { onBotUpdated(bot); setEditBot(null); await Promise.all([onReloadBots(), onReloadGroups()]); }} />}
+      {editGroup && <CreateGroupDialog key={editGroup.id} open initial={editGroup} bots={bots.filter(bot => bot.status !== 'archived')} onClose={() => setEditGroup(null)} onCreate={async input => {
+        await groupsAPI.update(editGroup.id, { title: input.title, topic: input.topic, botIds: input.botIds });
+        await onReloadGroups(); setEditGroup(null); setGroupRevision(value => value + 1);
+      }} />}
+
       {newGroup && <CreateGroupDialog open bots={bots.filter(bot => bot.status !== 'archived')} onClose={() => setNewGroup(false)} onCreate={handleCreateGroup} />}
 
-      {renameGroup && <RenameGroupDialog open initialTitle={renameGroup.title}
+      {renameGroup && <RenameChatDialog open kind="group" initialTitle={renameGroup.title}
         onClose={() => setRenameGroup(null)}
         onRename={title => handleRenameGroup(renameGroup, title)} />}
+
+      {renameBot && <RenameChatDialog open kind="bot" initialTitle={renameBot.name}
+        onClose={() => setRenameBot(null)}
+        onRename={name => handleRenameBot(renameBot, name)} />}
+
+      <ConfirmDialog open={Boolean(deleteBot)} title="删除 Bot" danger loading={deletingBot}
+        confirmText="删除 Bot" cancelText="取消" onConfirm={() => void confirmDeleteBot()}
+        onCancel={() => { if (!deletingBot) { setDeleteBot(null); setDeleteBotError(''); } }}
+        message={<>
+          将「{deleteBot?.name}」移入已归档并从侧栏移除。对话和记忆会保留，可在「我的 Bot → 已归档」恢复；归档后该 Bot 无法继续执行任务或参与群聊。
+          {deleteBotError && <span role="alert" className="mt-2 block text-error">{deleteBotError}</span>}
+        </>} />
 
       <ConfirmDialog
         open={Boolean(deleteGroup)}
@@ -313,7 +378,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         <GettingStarted guide={guide} modelConfigured={health.state === 'online' && health.health?.demoMode === false} onNavigate={navigateGuide} />
 
         {view === 'chat' && (isGroup
-          ? <GroupChatRoute groupId={sel.id} bots={bots} offline={health.state === 'offline'} onRetryConnection={() => void health.refresh()} retrying={health.state === 'connecting'} onSpeakingChange={setGroupSpeaking} />
+          ? <GroupChatRoute key={`${sel.id}:${groupRevision}`} groupId={sel.id} bots={bots} offline={health.state === 'offline'} onRetryConnection={() => void health.refresh()} retrying={health.state === 'connecting'} onSpeakingChange={setGroupSpeaking} />
           : <ChatPage
             chat={chat}
             bot={activeBot}
@@ -395,6 +460,12 @@ function dropStored(key: string): void {
 }
 
 export default function App() {
+  // Keep layout outside the keyed conversation subtree so switching Bots never resets it.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored('soren.sidebar-collapsed') === 'true');
+  const changeSidebarCollapsed = useCallback((collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
+    writeStored('soren.sidebar-collapsed', String(collapsed));
+  }, []);
   const [bots, setBots] = useState<Bot[]>([DEFAULT_BOT]);
   const [botsLoaded, setBotsLoaded] = useState(false);
   const [activeID, setActiveID] = useState('soren');
@@ -453,6 +524,8 @@ export default function App() {
     key={sel.type + ':' + sel.id}
     bots={bots}
     activeBot={activeBot}
+    sidebarCollapsed={sidebarCollapsed}
+    onSidebarCollapsedChange={changeSidebarCollapsed}
     sel={sel}
     groups={groupList.groups}
     groupsError={groupList.error}
@@ -465,6 +538,7 @@ export default function App() {
     onReloadInbox={botInbox.reload}
     initialConversation={initialConversation}
     onBotCreated={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }}
+    onBotUpdated={bot => setBots(previous => previous.map(item => item.id === bot.id ? bot : item))}
     onGroupCreated={chooseGroup}
   /></ToastProvider>;
 }

@@ -57,14 +57,14 @@ export const groupsAPI = {
    *
    * 一次调用是阻塞的：自主模式会在服务端跑完所有轮次才返回，
    * 所以返回的 messages 是本次落库的整段（含用户自己那条），前端整段替换。
-   * 自主模式最长 30 次模型调用，超时给足。
+   * 自主模式最长 15 次模型调用，超时给足。
    */
   async speak(
     id: string,
     input: {
       content: string;
       mentions: string[];
-      mode: string;
+      mode?: string;
       requestId: string;
       config?: Parameters<typeof toBackendOptions>[0];
     },

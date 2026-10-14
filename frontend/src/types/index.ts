@@ -130,6 +130,7 @@ export type GroupSpeakStatus = 'done' | 'cancelled' | 'failed' | 'running' | 'in
  * 前端替换乐观消息并按服务端 ID 合并，不做内容级去重。
  */
 export interface SpeakResult {
+  mode?: GroupMode;
   conversationId: string;
   status: GroupSpeakStatus;
   messages: Message[];
@@ -161,7 +162,7 @@ export interface GroupUpdateInput {
 export interface GroupSpeakInput {
   content: string;
   mentions: string[];
-  mode: GroupMode;
+  mode?: GroupMode;
   /** 幂等键，必填，同键重复提交返回同一批消息 */
   requestId: string;
   config?: LLMOptions;

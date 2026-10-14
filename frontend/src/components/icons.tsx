@@ -41,6 +41,16 @@ function createIcon(path: ReactNode, displayName: string) {
 
 /* ── 导航 ───────────────────────────────────────────────── */
 
+export const IconSidebarCollapse = createIcon(
+  <><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16m7-11-3 3 3 3" /></>,
+  'IconSidebarCollapse',
+);
+
+export const IconSidebarExpand = createIcon(
+  <><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16m4-11 3 3-3 3" /></>,
+  'IconSidebarExpand',
+);
+
 export const IconChat = createIcon(
   <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />,
   'IconChat',

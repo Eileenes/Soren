@@ -27,16 +27,28 @@ export function ChatEmptyState({ onPickPrompt, disabled = false, bot, variant = 
   members?: MemberPreview[];
 }) {
   if (variant === 'group') {
-    const modeHint = group?.mode === 'auto' ? '自主  依次发言' : '提及  谁回答谁';
+    const modeHint = '直接提问，大家回复一轮；邀请讨论，最多三轮后等待你决定是否继续。';
     return <div className="welcome-scene flex flex-col items-center py-4 text-center">
       <div className="flex items-center gap-3">
         {members.slice(0, 5).map(item => <span key={item.id} className="overflow-hidden rounded-md ring-1 ring-line/70"><img src={avatarURL(item.avatar)} alt={item.name} width={36} height={36} /></span>)}
       </div>
       <h1 className="mt-4 max-w-[590px] truncate text-lg font-semibold text-ink-1">{group?.title}</h1>
       <p className="mt-1.5 max-w-[590px] text-sm leading-[1.7] text-ink-2">
-        {group?.topic || '用 @ 指定要回答的 Bot，或让群内 Bot 依次发言'}
+        {group?.topic || '用 @ 指定 Bot，也可以直接向大家提问或邀请大家讨论。'}
       </p>
       <p className="mt-5 text-xs text-ink-3">{modeHint}</p>
+    </div>;
+  }
+  if (bot && bot.id !== 'soren') {
+    const needsResponsibilities = !bot.instructions.trim();
+    return <div className="bot-introduction">
+      <img src={avatarURL(bot.avatar)} alt="" width={64} height={64} />
+      <div>
+        <p className="text-sm font-medium text-ink-2">{bot.name}</p>
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink-1">{needsResponsibilities ? '你好，我的职责是什么？' : '今天，有什么交给我？'}</h1>
+        <p className="mt-3 max-w-[480px] whitespace-pre-wrap text-sm leading-7 text-ink-2">{needsResponsibilities ? '你希望我负责哪些事情？可以告诉我工作范围、做事方式，以及你期待的结果。' : bot.instructions}</p>
+        {needsResponsibilities && <p className="mt-4 text-xs text-ink-3">在下方回复我，我会记住自己的职责。以后也可以右键打开配置来调整。</p>}
+      </div>
     </div>;
   }
   return <div className="welcome-scene">

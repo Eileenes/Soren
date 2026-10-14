@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/soren/backend/internal/config"
@@ -51,6 +52,24 @@ func TestAppCORSAllowsOnlyTrustedOrigins(t *testing.T) {
 				t.Fatalf("untrusted origin allowed: status=%d headers=%v", response.Code, response.Header())
 			}
 		})
+	}
+}
+
+func TestAppCORSAllowsBotNavigationPatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(cors.New(appCORSConfig()))
+	router.PATCH("/api/bots/:id", func(c *gin.Context) { c.Status(http.StatusOK) })
+	for _, origin := range []string{"http://localhost:1420", "tauri://localhost", "http://tauri.localhost"} {
+		request := httptest.NewRequest(http.MethodOptions, "/api/bots/writer", nil)
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Access-Control-Request-Method", "PATCH")
+		request.Header.Set("Access-Control-Request-Headers", "Content-Type, X-Bot-ID")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent || !strings.Contains(response.Header().Get("Access-Control-Allow-Methods"), "PATCH") {
+			t.Fatalf("Bot navigation preflight rejected for %s: status=%d headers=%v", origin, response.Code, response.Header())
+		}
 	}
 }
 

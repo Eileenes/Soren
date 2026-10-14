@@ -80,6 +80,10 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		return
 	}
 	defer h.active.Delete(key)
+	if bot != nil && bot.ID != agent.DefaultBotID && strings.TrimSpace(bot.Instructions) == "" && h.agents != nil {
+		h.defineBotResponsibilities(c, bot, req)
+		return
+	}
 	memoryEnabled := h.memory != nil && h.memory.Enabled() && (bot == nil || bot.MemoryEnabled)
 	userID := resolveUserID(c)
 

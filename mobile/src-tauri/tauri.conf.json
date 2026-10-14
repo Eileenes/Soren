@@ -16,7 +16,8 @@
         "title": "Soren",
         "url": "mobile.html",
         "width": 390,
-        "height": 844
+        "height": 844,
+        "backgroundColor": "#FFFFFF"
       }
     ],
     "security": {

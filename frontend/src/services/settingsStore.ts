@@ -17,7 +17,7 @@ const DEFAULT_LLM_SETTINGS: LLMSettings = {
 };
 
 const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  theme: 'system',
+  theme: 'light',
   language: 'zh-CN',
   showMemoryBadge: true,
 };
@@ -56,7 +56,7 @@ function readPersisted(): AppSettings | null {
       },
       general: {
         ...DEFAULT_GENERAL_SETTINGS,
-        theme: ['light', 'dark', 'system'].includes(general.theme) ? general.theme : 'system',
+        theme: ['light', 'dark', 'system'].includes(general.theme) ? general.theme : DEFAULT_GENERAL_SETTINGS.theme,
         showMemoryBadge: typeof general.showMemoryBadge === 'boolean' ? general.showMemoryBadge : true,
       },
     };

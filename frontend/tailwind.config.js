@@ -11,17 +11,17 @@ export default {
       colors: {
         // ── 品牌色（docs/design-system.md）─────────────────────────
         primary: {
-          start: '#368773',
-          end: '#25564b',
-          DEFAULT: '#368773',
+          start: 'rgb(var(--soren-ink-1) / <alpha-value>)',
+          end: 'rgb(var(--soren-ink-2) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--soren-ink-1) / <alpha-value>)',
         },
         accent: {
-          pink: '#bc9384',
-          coral: '#cf8575',
+          pink: 'rgb(var(--soren-ink-2) / <alpha-value>)',
+          coral: 'rgb(var(--soren-ink-3) / <alpha-value>)',
         },
 
         // ── 语义化表面 / 文本 / 描边（由 CSS 变量驱动，随主题自动切换）──
-        // 深色为默认基调，浅色模式走同一套类名，无需写两遍
+        // 默认白色背景，浅色与深色共用灰阶 token
         surface: {
           1: 'rgb(var(--soren-surface-1) / <alpha-value>)',
           2: 'rgb(var(--soren-surface-2) / <alpha-value>)',
@@ -44,7 +44,7 @@ export default {
           primary: 'rgb(var(--soren-surface-1) / <alpha-value>)',
           secondary: 'rgb(var(--soren-surface-2) / <alpha-value>)',
           tertiary: 'rgb(var(--soren-surface-3) / <alpha-value>)',
-          dark: '#1a1b1e',
+          dark: '#121212',
         },
         text: {
           primary: 'rgb(var(--soren-ink-1) / <alpha-value>)',
@@ -59,10 +59,10 @@ export default {
         },
 
         // ── 语义色 ────────────────────────────────────────────────
-        success: '#368773',
-        warning: '#b38b3d',
-        error: '#d06b63',
-        info: '#589aa6',
+        success: 'rgb(var(--soren-ink-1) / <alpha-value>)',
+        warning: 'rgb(var(--soren-ink-2) / <alpha-value>)',
+        error: 'rgb(var(--soren-ink-2) / <alpha-value>)',
+        info: 'rgb(var(--soren-ink-2) / <alpha-value>)',
       },
 
       fontFamily: {
@@ -115,9 +115,9 @@ export default {
         'lg': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         'xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         'none': 'none',
-        // 科技感光晕
-        'glow': '0 0 0 1px rgb(54 135 115 / 0.35), 0 8px 32px -8px rgb(54 135 115 / 0.45)',
-        'glow-lg': '0 0 0 1px rgb(54 135 115 / 0.4), 0 18px 60px -12px rgb(80 130 108 / 0.55)',
+        // 轻量中性阴影
+        'glow': '0 0 0 1px rgb(var(--soren-ink-1) / 0.35), 0 8px 32px -8px rgb(var(--soren-ink-1) / 0.45)',
+        'glow-lg': '0 0 0 1px rgb(var(--soren-ink-1) / 0.4), 0 18px 60px -12px rgb(var(--soren-ink-1) / 0.55)',
         'ring-inset': 'inset 0 1px 0 0 rgb(255 255 255 / 0.06)',
       },
 
@@ -210,12 +210,12 @@ export default {
       },
 
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #368773 0%, #25564b 100%)',
-        'gradient-accent': 'linear-gradient(135deg, #bc9384 0%, #cf8575 100%)',
-        // 品牌三色渐变，用于标题等需要更丰富层次的地方
-        'gradient-brand': 'linear-gradient(120deg, #368773 0%, #a06cd5 45%, #bc9384 100%)',
-        // 极光背景：页面底层的科技感光晕
-        'aurora': 'radial-gradient(60% 55% at 12% 8%, rgb(54 135 115 / 0.20) 0%, transparent 60%), radial-gradient(50% 50% at 88% 4%, rgb(204 176 112 / 0.16) 0%, transparent 62%), radial-gradient(50% 50% at 70% 96%, rgb(80 130 108 / 0.18) 0%, transparent 60%)',
+        'gradient-primary': 'linear-gradient(135deg, #262626, #171717)',
+        'gradient-accent': 'linear-gradient(135deg, #737373, #525252)',
+        // 灰阶文字层次
+        'gradient-brand': 'linear-gradient(120deg, rgb(var(--soren-ink-1)), rgb(var(--soren-ink-2)))',
+        // 保留兼容类名，页面背景保持纯色
+        'aurora': 'none',
         // 网格纹理
         'grid': 'linear-gradient(to right, rgb(var(--soren-line) / 0.5) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--soren-line) / 0.5) 1px, transparent 1px)',
         // 骨架屏流光
