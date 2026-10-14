@@ -2,11 +2,27 @@
 
 mod backend;
 mod models;
+mod oauth;
 
 use backend::{BackendProcess, ConfigInput, DesktopConfig};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent, WindowEvent};
+
+#[tauri::command]
+fn get_oauth_config(
+    state: tauri::State<'_, oauth::OAuthConfigStore>,
+) -> Result<oauth::OAuthConfigView, String> {
+    state.get()
+}
+
+#[tauri::command]
+fn save_oauth_config(
+    state: tauri::State<'_, oauth::OAuthConfigStore>,
+    config: oauth::OAuthConfigInput,
+) -> Result<oauth::OAuthConfigView, String> {
+    state.save(config)
+}
 
 #[tauri::command]
 fn get_desktop_config(state: tauri::State<'_, BackendProcess>) -> Result<DesktopConfig, String> {
@@ -116,7 +132,10 @@ fn export_markdown(title: String, content: String) -> Result<String, String> {
 fn main() {
     tauri::Builder::default()
         .manage(BackendProcess::new())
+        .manage(oauth::OAuthConfigStore::default())
         .invoke_handler(tauri::generate_handler![
+            get_oauth_config,
+            save_oauth_config,
             get_desktop_config,
             list_provider_models,
             save_desktop_config,

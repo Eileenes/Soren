@@ -278,7 +278,7 @@ pub fn data_dir() -> Result<PathBuf, String> {
         .ok_or_else(|| "无法确定用户数据目录。".into())
 }
 
-fn ensure_data_directory(dir: &Path) -> Result<(), String> {
+pub(crate) fn ensure_data_directory(dir: &Path) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {

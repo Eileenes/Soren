@@ -31,6 +31,7 @@ release/*.zip
 *.sqlite*
 *.db.*
 provider.json*
+oauth.json*
 mobile-identity.json*
 credentials.json
 secrets/
