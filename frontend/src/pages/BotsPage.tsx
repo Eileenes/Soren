@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PageContainer, PageHeading } from "../components/layout/Shell";
 import { Button } from "../components/ui";
 import { IconPlus } from "../components/icons";
-import { avatarURL, type Bot } from "../services/agents";
+import { avatarURL, copyBotDraft, type Bot } from "../services/agents";
 import {
   MyTemplates,
   TemplateBotPicker,
@@ -125,22 +125,10 @@ export function BotsPage({
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() =>
-                    edit({
-                      ...bot,
-                      id: "",
-                      name: bot.name + " 副本",
-                      collaborators: [],
-                      collaborationEnabled: false,
-                      collaborationAll: false,
-                      templateSource: undefined,
-                      version: 1,
-                      status: "active",
-                    })
-                  }
+                  onClick={() => edit(copyBotDraft(bot))}
                   aria-label={`复制 ${bot.name}`}
                 >
-                  复制
+                  复制 Bot
                 </Button>
                 <Button
                   disabled={bot.status !== "active"}

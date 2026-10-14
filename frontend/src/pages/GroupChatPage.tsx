@@ -32,6 +32,32 @@ import type { ChatMessage } from '../hooks/useChat';
  */
 const BOTTOM_THRESHOLD = 240;
 
+/** 每个群只保存最近一次已处理的讨论；新的 requestId 仍可显示提示。 */
+function GroupDiscussionPrompt({ groupId, requestId, cancelled, offline, onContinue }: {
+  groupId: string;
+  requestId: string;
+  cancelled: boolean;
+  offline: boolean;
+  onContinue: () => void;
+}) {
+  const storageKey = `soren.group-discussion-choice.v1:${groupId}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(storageKey) === requestId; }
+    catch { return false; }
+  });
+  const dismiss = () => {
+    setDismissed(true);
+    try { localStorage.setItem(storageKey, requestId); }
+    catch { /* 存储不可用时仍完成当前页面的选择。 */ }
+  };
+  if (dismissed) return null;
+  return <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
+    <span className="mr-auto text-sm text-ink-2">{cancelled ? '讨论已中止，要继续吗？' : '这次讨论结束了，要继续吗？'}</span>
+    <Button size="sm" variant="ghost" onClick={dismiss}>暂时结束</Button>
+    <Button size="sm" disabled={offline} onClick={() => { dismiss(); onContinue(); }}>继续讨论</Button>
+  </div>;
+}
+
 export interface GroupChatPageProps {
   bots: Bot[];
   chat: UseGroupChatResult;
@@ -75,8 +101,7 @@ export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying
   const stickToBottom = useRef(true);
   /** mention 模式额外显示各位发言人的思考占位 */
   const [targets, setTargets] = useState<string[]>([]);
-  const [dismissedTurn, setDismissedTurn] = useState<string>();
-  const canContinue = !speaking && turn?.mode === 'auto' && ['done', 'cancelled'].includes(turn.status) && dismissedTurn !== turn.requestId;
+  const canContinue = !loadingHistory && !speaking && turn?.mode === 'auto' && ['done', 'cancelled'].includes(turn.status);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -213,11 +238,14 @@ export function GroupChatPage({ bots, chat, offline, onRetryConnection, retrying
               <IconStop size={16} />
             </IconButton>
           </div>
-        ) : canContinue ? <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
-          <span className="mr-auto text-sm text-ink-2">{turn?.status === 'cancelled' ? '讨论已中止，要继续吗？' : '这次讨论结束了，要继续吗？'}</span>
-          <Button size="sm" variant="ghost" onClick={() => setDismissedTurn(turn?.requestId)}>暂时结束</Button>
-          <Button size="sm" disabled={offline} onClick={() => handleSend('请大家继续讨论，最多三轮。')}>继续讨论</Button>
-        </div> : undefined}
+        ) : canContinue && group && turn ? <GroupDiscussionPrompt
+          key={`${group.id}:${turn.requestId}`}
+          groupId={group.id}
+          requestId={turn.requestId}
+          cancelled={turn.status === 'cancelled'}
+          offline={offline}
+          onContinue={() => handleSend('请大家继续讨论，最多三轮。')}
+        /> : undefined}
       />
     </div>
   );

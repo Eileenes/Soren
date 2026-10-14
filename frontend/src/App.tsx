@@ -44,7 +44,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { BotsPage } from './pages/BotsPage';
 import { TasksPage } from './pages/TasksPage';
 import { SharedNotesPage } from './pages/SharedNotesPage';
-import { agentsAPI, DEFAULT_BOT, type Bot } from './services/agents';
+import { agentsAPI, copyBotDraft, DEFAULT_BOT, type Bot } from './services/agents';
 import { groupsAPI } from './services/groups';
 import { setActiveBotID } from './services/botScope';
 import { describeError, normalizeError } from './services/api';
@@ -296,6 +296,10 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         onCollapsedChange={onSidebarCollapsedChange}
         onPinBot={(id, pinned) => { void handlePinBot(id, pinned); }}
         onConfigureBot={id => setEditBot(bots.find(bot => bot.id === id) ?? null)}
+        onCopyBot={id => {
+          const bot = bots.find(item => item.id === id);
+          if (bot) setNewBot(copyBotDraft(bot));
+        }}
         onConfigureGroup={id => setEditGroup(groups.find(group => group.id === id) ?? null)}
         onRenameBot={id => setRenameBot(bots.find(bot => bot.id === id) ?? null)}
         onDeleteBot={id => { setDeleteBotError(''); setDeleteBot(bots.find(bot => bot.id === id) ?? null); }}

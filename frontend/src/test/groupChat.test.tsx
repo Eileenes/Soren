@@ -160,6 +160,9 @@ beforeEach(() => {
   resetSettings();
   localStorage.removeItem('soren.active-bot');
   localStorage.removeItem('soren.active-group');
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('soren.group-discussion-choice.v1:')) localStorage.removeItem(key);
+  }
   localStorage.setItem('soren.getting-started.v1', JSON.stringify({ seen: true, active: false, step: 0 }));
   document.documentElement.className = 'light';
   mockOnline();
@@ -1216,6 +1219,69 @@ describe('群聊审查回归', () => {
 });
 
 describe('群聊配置与讨论继续', () => {
+  it.each(['done', 'cancelled'])('选择暂时结束后切换与重启不重复提示，新的讨论仍显示：%s', async status => {
+    apiMock.groupList.mockResolvedValue([groupView()]);
+    const detail = groupView({ messages: [message({ id: 'answer', content: '本轮结论' })], latestTurn: { requestId: 'finished', status, mode: 'auto' } });
+    apiMock.groupDetail.mockResolvedValue(detail);
+    const user = userEvent.setup();
+    const app = render(<App />);
+    await user.click(await waitNavRow(/产品评审/));
+    await user.click(await screen.findByRole('button', { name: '暂时结束' }));
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
+    await user.click(await waitNavRow('Soren'));
+    await user.click(await waitNavRow(/产品评审/));
+    await screen.findByText('本轮结论');
+    expect(screen.queryByRole('button', { name: '暂时结束' })).not.toBeInTheDocument();
+    app.unmount();
+    render(<App />);
+    await screen.findByText('本轮结论');
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
+    expect(apiMock.groupSpeak).not.toHaveBeenCalled();
+    apiMock.groupDetail.mockResolvedValue({ ...detail, latestTurn: { requestId: 'next', status: 'done', mode: 'auto' } });
+    await user.click(await waitNavRow('Soren'));
+    await user.click(await waitNavRow(/产品评审/));
+    expect(await screen.findByRole('button', { name: '继续讨论' })).toBeInTheDocument();
+  });
+
+  it('各群独立记住选择，未处理的群再次进入仍显示提示', async () => {
+    const other = groupView({ id: 'g2', title: '技术讨论' });
+    apiMock.groupList.mockResolvedValue([groupView(), other]);
+    apiMock.groupDetail.mockImplementation(async id => groupView({
+      ...(id === 'g2' ? other : {}), messages: [message({ content: `讨论结果 ${id}` })],
+      latestTurn: { requestId: 'same-request', status: 'done', mode: 'auto' },
+    }));
+    const user = userEvent.setup(); render(<App />);
+    await user.click(await waitNavRow(/产品评审/));
+    await user.click(await screen.findByRole('button', { name: '暂时结束' }));
+    await user.click(await waitNavRow(/技术讨论/));
+    expect(await screen.findByRole('button', { name: '继续讨论' })).toBeInTheDocument();
+    await user.click(await waitNavRow(/产品评审/));
+    await screen.findByText('讨论结果 g1');
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
+    await user.click(await waitNavRow(/技术讨论/));
+    expect(await screen.findByRole('button', { name: '继续讨论' })).toBeInTheDocument();
+  });
+
+  it('选择继续后即使请求失败、再次进入群，也不重复询问已处理的那轮', async () => {
+    apiMock.groupList.mockResolvedValue([groupView()]);
+    apiMock.groupDetail.mockResolvedValue(groupView({
+      messages: [message({ content: '上一轮结论' })],
+      latestTurn: { requestId: 'previous', status: 'done', mode: 'auto' },
+    }));
+    apiMock.groupSpeak.mockRejectedValue(new apiMock.FakeApiError('暂时无法开始讨论', 500));
+    const user = userEvent.setup(); const app = render(<App />);
+    await user.click(await waitNavRow(/产品评审/));
+    await user.click(await screen.findByRole('button', { name: '继续讨论' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('暂时无法开始讨论');
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
+    app.unmount();
+    render(<App />);
+    await screen.findByText('上一轮结论');
+    expect(screen.queryByRole('button', { name: '继续讨论' })).not.toBeInTheDocument();
+    expect(apiMock.groupSpeak).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('textbox', { name: '消息输入框' })).toBeEnabled();
+  });
+
   it('右键配置编辑群名、主题和成员，不提交模式设置', async () => {
     apiMock.groupList.mockResolvedValue([groupView()]);
     apiMock.groupDetail.mockResolvedValue(groupView({ messages: [] }));
