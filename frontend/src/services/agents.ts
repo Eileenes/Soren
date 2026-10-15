@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { getApiBaseUrl, normalizeError } from './api';
+import { http, normalizeError } from './api';
 import { getActiveBotID } from './botScope';
 export const AVATARS = ['soren', 'angler', 'flamingo', 'hydrant', 'iceberg', 'pudin', 'rex', 'robo', 'saboten', 'tako', 'yurei'] as const;
 export const avatarURL = (id: string) => AVATARS.includes(id as typeof AVATARS[number]) && id !== 'soren' ? `/bot-avatars/${id}.png` : '/soren-mark.svg';
@@ -14,7 +13,7 @@ export interface SharedNote { id: string; title: string; content: string; allowe
 export interface RunStep { botId: string; name: string; avatar: string; status: string; output: string; }
 export interface Run { id: string; ownerBotId: string; goal: string; status: string; steps: RunStep[]; result: string; error: string; demo: boolean; createdAt: string; }
 async function request<T>(method: string, path: string, data?: unknown, scope = getActiveBotID()): Promise<T> {
- try { return (await axios.request<T>({ method, url: getApiBaseUrl() + '/api' + path, data, headers: { 'X-Bot-ID': scope }, timeout: path === '/bots/draft' ? 65000 : 15000 })).data; }
+ try { return (await http.request<T>({ method, url: '/api' + path, data, headers: { 'X-Bot-ID': scope }, timeout: path === '/bots/draft' ? 65000 : 15000 })).data; }
  catch (error) { throw normalizeError(error); }
 }
 export const agentsAPI = {

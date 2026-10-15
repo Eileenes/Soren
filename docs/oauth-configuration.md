@@ -1,59 +1,22 @@
-# 内部 OAuth2 IdP 配置
+# 内部 OAuth 登录配置
 
-桌面端入口：设置 → 通用设置 → OAuth 登录配置。
+企业登录已接入独立 Go 后端。员工只需在桌面端的「使用空间」填写公司服务器根地址，在系统浏览器完成授权，并确认账号后进入公司空间。个人本地使用无需登录。
 
-当前功能负责校验、保存、读取与更新配置。保存成功表示本地配置可用，不表示凭据已获 IdP 验证，也不会发起登录、创建会话或限制本地空间访问。
+管理员配置与部署步骤见 [企业部署基础版](ENTERPRISE-DEPLOYMENT.md)，环境变量示例见 [deploy/enterprise/.env.example](../deploy/enterprise/.env.example)。
 
-## 配置项
+## 公司身份服务
 
-| 字段 | 默认值或要求 |
-| --- | --- |
-| 使用环境 | 本地开发；可选择测试、生产。目前保存一组配置 |
-| Authorization Endpoint | `https://auth.chaitin.net/oauth2/auth` |
-| Token Endpoint | `https://auth.chaitin.net/oauth2/token` |
-| UserInfo Endpoint | `https://auth.chaitin.net/userinfo` |
-| Client ID | 从内部工单申请获得 |
-| Client Secret | Basic / Post 必填；已有密钥可留空保留，输入新值可替换 |
-| Redirect URI | 必填，与 IdP 注册地址完全一致；不预填尚未实现的回调 |
-| Scope | `openid profile email`；必须包含 `openid`，使用空格分隔 |
-| 客户端认证方式 | 默认 `client_secret_basic`；也支持 `client_secret_post`、`none` |
+- 注册服务端 OAuth 应用，回调地址为 `https://公司服务域名/auth/callback`。
+- 配置 Authorization、Token、UserInfo 三个可信 HTTPS 端点，以及 Client ID 和 Client Secret。
+- 必须支持授权码流程及 PKCE S256；支持 `client_secret_basic` 或 `client_secret_post`。
+- 身份来自可信 UserInfo 响应的稳定 ID。默认字段为 `sub`；公司文档约定 `id` 时设置 `ENTERPRISE_SUBJECT_CLAIM=id`。用户名和邮箱不能作为成员主键。
+- 通过 `ENTERPRISE_ALLOWED_SUBJECTS` 限定试点成员；只有 IdP 应用已限制合法员工访问时才使用 `*`。
+- 应用密钥只放在企业服务器。桌面登录令牌留在系统凭据库，前端不接收令牌。
 
-所有地址须使用 HTTPS。本地开发环境允许 `localhost`、`127.0.0.1`、`[::1]` 的 HTTP 地址；测试与生产环境仍要求 HTTPS。接口地址不能含查询参数，回调地址允许查询参数并保留原始拼写。地址均不允许账号、密码或片段。
+真实 IdP 的 PKCE、响应结构及应用准入策略仍须部署时验证。未实现 IdP refresh token／SCIM 同步；已有会话的有效期为 8 小时，管理员可停用 Soren 成员并撤销会话。
 
-更换环境、Client ID、任一 IdP 接口或认证方式，需要重新提供密钥。切换至 `none` 并保存，会移除之前保存的密钥。修改回调地址或 Scope 可以保留同一客户端的原密钥。保存前的更改可以撤销。
+## 旧本地配置的处理
 
-## 存储与接口
+桌面端旧的 OAuth 配置表单、配置服务及 `get_oauth_config`、`save_oauth_config` Tauri 命令均已移除。OAuth 应用参数只由管理员在企业服务器配置，员工使用「连接公司服务器」和「使用公司账号登录」入口。
 
-- Tauri 命令：`get_oauth_config`、`save_oauth_config`；不通过本地 HTTP 服务公开凭据配置接口。
-- 存储位置：`SOREN_DATA_DIR/oauth.json`，未设置环境变量时为 `~/.soren/oauth.json`。
-- 沿用桌面私有配置目录。macOS / Unix 目录权限为 `0700`，文件权限为 `0600`；这是本地文件存储，不是加密凭据库。
-- 原子替换配置；校验或写入失败时保留原配置，损坏的旧配置不会被静默覆盖。
-- 读取和保存响应仅包含 `settings`、`configured`、`hasClientSecret`，不会回传密钥。前端不将密钥写入 localStorage，保存成功后清空输入框。
-- 运行时文件 `oauth.json*` 已加入 Git 忽略规则。测试只使用独立临时目录和虚构凭据。
-
-保存请求：
-
-```ts
-invoke('save_oauth_config', {
-  config: {
-    settings: {
-      environment: 'development',
-      authorizationEndpoint: 'https://auth.chaitin.net/oauth2/auth',
-      tokenEndpoint: 'https://auth.chaitin.net/oauth2/token',
-      userInfoEndpoint: 'https://auth.chaitin.net/userinfo',
-      clientId: '申请获得的 ID',
-      redirectUri: '在 IdP 中注册的地址',
-      scope: 'openid profile email',
-      clientAuthMethod: 'client_secret_basic',
-    },
-    // 首次保存或轮换时提供；更新同一客户端时省略以保留。
-    clientSecret: '由用户在界面填写',
-  },
-});
-```
-
-## 后续登录接入
-
-当前尚未实现授权入口、回调处理、令牌交换、登录状态保持和退出登录。后续应复用成熟 OAuth 客户端库，使用每次独立且有过期时间的 state 并在回调校验，按注册的认证方式交换授权码，再调用 UserInfo。用户唯一标识使用文档约定的 `id`，不能使用可变的 `username` 或 `email`。令牌应保留在原生侧或服务端，不返回前端持久化。
-
-文档未说明 PKCE、OIDC discovery 与 JWKS 的支持情况，后续接入真实登录时需要与 IdP 确认；当前配置保存不会据此假定端点或发出验证请求。对于桌面公开客户端，应确认 IdP 支持 PKCE 后再启用实际授权流程。
+旧版本可能留下的 `oauth.json` 不再被读取或写入，也不会自动上传或迁移到服务器。本次代码清理不删除用户已有的本地文件；确认不再需要旧配置后，可自行删除该文件。它仍受 Git 忽略规则保护。

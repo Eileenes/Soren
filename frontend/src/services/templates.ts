@@ -1,5 +1,4 @@
-import axios from "axios";
-import { getApiBaseUrl, normalizeError } from "./api";
+import { http, normalizeError } from "./api";
 import type { Bot, BotDefinition, BotPolicy } from "./agents";
 
 export interface TemplateConfig {
@@ -42,9 +41,9 @@ async function request<T>(
 ): Promise<T> {
   try {
     return (
-      await axios.request<T>({
+      await http.request<T>({
         method,
-        url: getApiBaseUrl() + "/api" + path,
+        url: "/api" + path,
         data,
         headers: { "X-Bot-ID": "soren" },
         timeout: 20000,

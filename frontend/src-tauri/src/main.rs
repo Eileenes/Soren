@@ -1,8 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod backend;
+mod company;
 mod models;
-mod oauth;
 mod template_links;
 use tauri_plugin_deep_link::DeepLinkExt;
 use template_links::take_template_links;
@@ -11,21 +11,6 @@ use backend::{BackendProcess, ConfigInput, DesktopConfig};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent, WindowEvent};
-
-#[tauri::command]
-fn get_oauth_config(
-    state: tauri::State<'_, oauth::OAuthConfigStore>,
-) -> Result<oauth::OAuthConfigView, String> {
-    state.get()
-}
-
-#[tauri::command]
-fn save_oauth_config(
-    state: tauri::State<'_, oauth::OAuthConfigStore>,
-    config: oauth::OAuthConfigInput,
-) -> Result<oauth::OAuthConfigView, String> {
-    state.save(config)
-}
 
 #[tauri::command]
 fn get_desktop_config(state: tauri::State<'_, BackendProcess>) -> Result<DesktopConfig, String> {
@@ -143,16 +128,14 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .manage(template_links::TemplateLinks::default())
         .manage(BackendProcess::new())
-        .manage(oauth::OAuthConfigStore::default())
         .invoke_handler(tauri::generate_handler![
             take_template_links,
-            get_oauth_config,
-            save_oauth_config,
             get_desktop_config,
             list_provider_models,
             save_desktop_config,
             open_data_directory,
             open_external,
+            company::open_company_login,
             export_markdown
         ])
         .setup(|app| {

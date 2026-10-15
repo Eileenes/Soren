@@ -89,6 +89,9 @@ export function normalizeError(error: unknown): ApiError {
     }
 
     const status = axiosError.response?.status ?? 0;
+    if (status === 401 && currentBaseUrl.endsWith('/enterprise') && axiosError.config && requestGenerations.get(axiosError.config) === workspaceGeneration && axiosError.config.baseURL === currentBaseUrl && axiosError.config.headers?.get('X-Soren-Workspace') === currentWorkspace) {
+      window.dispatchEvent(new Event('soren:company-session-expired'));
+    }
     const fallbackByStatus: Record<number, string> = {
       400: '请求参数有误，请检查输入内容。',
       404: '请求的资源不存在，可能已被删除。',
@@ -124,6 +127,10 @@ export function describeError(error: unknown): string {
 // ────────────────────────────────────────────────────────────
 
 let currentBaseUrl = DEFAULT_API_BASE_URL;
+let currentWorkspace = '';
+let workspaceRequests = new AbortController();
+let workspaceGeneration = 0;
+const requestGenerations = new WeakMap<object, number>();
 
 /**
  * 共享 axios 实例
@@ -139,20 +146,33 @@ export const http: AxiosInstance = axios.create({
 });
 
 http.interceptors.request.use((config) => {
+  requestGenerations.set(config, workspaceGeneration);
+  if (!config.signal) config.signal = workspaceRequests.signal;
   if (!config.headers.has('X-Bot-ID')) config.headers.set('X-Bot-ID', getActiveBotID());
   return config;
 }, undefined, { synchronous: true });
 
 http.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (requestGenerations.get(response.config) !== workspaceGeneration) throw new ApiError('使用空间已切换，请重试。', 409);
+    return response;
+  },
   (error: unknown) => Promise.reject(normalizeError(error)),
 );
 
-/** 更新运行时 baseURL（设置页修改后端地址后调用） */
-export function setApiBaseUrl(baseUrl: string): void {
+/** Switch only after the local bridge confirms the selected space. */
+export function setApiBaseUrl(baseUrl: string, workspace = '', resetRequests = false): void {
   const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  if (resetRequests || (trimmed || DEFAULT_API_BASE_URL) !== currentBaseUrl || workspace !== currentWorkspace) {
+    workspaceGeneration++;
+    workspaceRequests.abort();
+    workspaceRequests = new AbortController();
+  }
   currentBaseUrl = trimmed === '' ? DEFAULT_API_BASE_URL : trimmed;
+  currentWorkspace = workspace;
   http.defaults.baseURL = currentBaseUrl;
+  if (workspace) http.defaults.headers.common['X-Soren-Workspace'] = workspace;
+  else delete http.defaults.headers.common['X-Soren-Workspace'];
 }
 
 /** 读取当前生效的 baseURL */

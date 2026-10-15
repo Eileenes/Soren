@@ -17,6 +17,7 @@ import (
 	"github.com/soren/backend/internal/channel"
 	"github.com/soren/backend/internal/config"
 	"github.com/soren/backend/internal/connectors"
+	"github.com/soren/backend/internal/enterpriseclient"
 	"github.com/soren/backend/internal/group"
 	"github.com/soren/backend/internal/llm"
 	"github.com/soren/backend/internal/memory"
@@ -184,6 +185,11 @@ func main() {
 	// 中间件
 	r.Use(middleware.Logger())
 	r.Use(cors.New(appCORSConfig()))
+	company, err := enterpriseclient.New(db, tools.Vault, os.Getenv("ENTERPRISE_CLIENT_DEV") == "1")
+	if err != nil {
+		log.Fatalf("Cannot initialize company connections: %v", err)
+	}
+	company.Register(r)
 
 	// 路由
 	apiGroup := r.Group("/api")
@@ -346,7 +352,7 @@ func appCORSConfig() cors.Config {
 			}
 		},
 		AllowMethods:  []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:  []string{"Origin", "Content-Type", "Accept", "Authorization", "X-User-ID", "X-Bot-ID"},
+		AllowHeaders:  []string{"Origin", "Content-Type", "Accept", "Authorization", "X-User-ID", "X-Bot-ID", "X-Soren-Workspace"},
 		ExposeHeaders: []string{"Content-Length"},
 	}
 }

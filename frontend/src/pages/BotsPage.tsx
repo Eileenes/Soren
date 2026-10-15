@@ -10,6 +10,7 @@ import {
 } from "../components/BotTemplates";
 import { openTemplateImport } from "../services/templates";
 import { BotEditor, blankBot } from "../components/BotEditor";
+import { useWorkspace } from "../components/WorkspaceProvider";
 export function BotsPage({
   bots,
   active,
@@ -23,6 +24,7 @@ export function BotsPage({
   onReload: () => Promise<void>;
   error: string | null;
 }) {
+  const company = useWorkspace().status.mode === 'enterprise';
   const [pickingTemplate, setPickingTemplate] = useState(false);
   const [sharing, setSharing] = useState<Bot | null>(null);
   const [templates, setTemplates] = useState(false);
@@ -36,11 +38,11 @@ export function BotsPage({
         title="我的 Bot"
         actions={
           <>
-            <Button variant="primary" onClick={() => setPickingTemplate(true)}>
+            {!company && <><Button variant="primary" onClick={() => setPickingTemplate(true)}>
               创建 Bot 模板
             </Button>
             <Button onClick={() => openTemplateImport()}>导入模板</Button>
-            <Button onClick={() => setTemplates(true)}>我的模板</Button>
+            <Button onClick={() => setTemplates(true)}>我的模板</Button></>}
             <Button
               leadingIcon={<IconPlus size={16} />}
               onClick={() => edit(blankBot())}
@@ -110,7 +112,8 @@ export function BotsPage({
               <div className="bot-card-actions">
                 <Button
                   variant="ghost"
-                  disabled={!bot.instructions.trim()}
+                  disabled={company || !bot.instructions.trim()}
+                  title={company ? '公司 Bot 分享尚未开放' : undefined}
                   onClick={() => setSharing(bot)}
                   aria-label={`复制 ${bot.name}`}
                 >

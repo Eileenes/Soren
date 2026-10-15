@@ -70,3 +70,7 @@ VITE_SOREN_RELAY_URL=https://relay.example.com npm --prefix mobile run ios:build
 ## Bot 模板分享服务
 
 独立部署文件位于 `deploy/templates/`。配置发布者凭据和 HTTPS 域名后，用户即可通过链接分享和导入 Bot；详见 [部署与使用说明](../docs/bot-template-service.md)。
+
+## 企业内部服务
+
+公司 OAuth 登录与员工独立空间使用单独的 `deploy/enterprise/` 部署方案，不由手机中继承担。包含 Go 企业服务、PostgreSQL 和 Caddy；配置及运维见 [企业部署指南](../docs/ENTERPRISE-DEPLOYMENT.md)。普通个人用户仍可直接使用本地模式，无需部署这些服务。

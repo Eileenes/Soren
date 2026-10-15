@@ -1,0 +1,4 @@
+{$SOREN_ENTERPRISE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy enterprise:8091
+}

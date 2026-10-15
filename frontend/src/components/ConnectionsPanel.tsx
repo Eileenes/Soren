@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ConnectionAppCard } from './ConnectionAppCard';
+import { useWorkspace } from './WorkspaceProvider';
 import { ConnectionAppIcon } from './ConnectionAppIcon';
 import { agentsAPI, avatarURL, type Bot } from '../services/agents';
 import { connectionRequest as request, openExternal, type Connection } from '../services/connections';
@@ -16,6 +17,7 @@ const cards = [
 const kindTitle = (kind: Kind | null) => kind === 'gmail' ? 'Gmail' : kind === 'notion' ? 'Notion' : isKeyKind(kind) ? keyKinds[kind].title : 'MCP';
 
 export function ConnectionsPanel({ children }: { children?: ReactNode }) {
+  const company = useWorkspace().status.mode === 'enterprise';
   const [connections, setConnections] = useState<Connection[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
   const [kind, setKind] = useState<Kind | null>(null);
@@ -43,7 +45,8 @@ export function ConnectionsPanel({ children }: { children?: ReactNode }) {
   };
   const disconnect = async (c: Connection) => { setBusy(true); setError(''); try { await request('DELETE', `/connections/${c.id}`); await reload(); } catch (e) { setError(describeError(e)); } finally { setBusy(false); } };
   return <section className="mb-9 space-y-5">
-    <div className="application-catalog">{cards.map(([id, title, caption, Icon]) => <ConnectionAppCard key={id} title={title} description={caption} icon={<ConnectionAppIcon app={id} fallback={<Icon size={23} />} />} detail={connections.some(c => connectionKind(c) === id) ? `${connections.filter(c => connectionKind(c) === id).length} 个已连接账号` : undefined} onAdd={() => add(id as Kind)} />)}{children}</div>
+    {company && <p className="text-sm leading-6 text-ink-2">连接仅供你的 Bot 使用，凭据由公司服务器加密保存。公司登录不会自动授予第三方平台权限。Gmail 授权暂限个人空间。</p>}
+    <div className="application-catalog">{cards.filter(([id]) => !company || id !== 'gmail').map(([id, title, caption, Icon]) => <ConnectionAppCard key={id} title={title} description={caption} icon={<ConnectionAppIcon app={id} fallback={<Icon size={23} />} />} detail={connections.some(c => connectionKind(c) === id) ? `${connections.filter(c => connectionKind(c) === id).length} 个已连接账号` : undefined} onAdd={() => add(id as Kind)} />)}{children}</div>
     {error && <p role="alert" className="bot-error">{error}</p>}{notice && <p role="status" className="text-sm text-ink-2">{notice}</p>}
 
     <Modal open={Boolean(kind)} onClose={close} title={editing ? `${editing.name} · Bot 权限` : `连接 ${kindTitle(kind)}`} footer={<><Button variant="ghost" disabled={busy} onClick={close}>取消</Button><Button loading={busy} onClick={() => void save()}>{editing ? '保存' : kind === 'gmail' ? '前往 Google 授权' : '验证并连接'}</Button></>}>

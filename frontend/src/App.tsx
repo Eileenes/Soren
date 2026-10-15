@@ -15,6 +15,8 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { GettingStarted, useGettingStarted } from './components/GettingStarted';
+import { WorkspaceProvider, useWorkspace } from './components/WorkspaceProvider';
+import { CompanyPanel } from './components/CompanyPanel';
 import { SettingsNav } from './components/layout/SettingsNav';
 import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
 import { TemplateImportHost, TemplatePublisher } from './components/BotTemplates';
@@ -27,7 +29,7 @@ import { useGroupList } from './hooks/useGroupChat';
 import { SearchPalette } from './components/SearchPalette';
 import { Sidebar } from './components/layout/Sidebar';
 import { TitleBar } from './components/layout/TitleBar';
-import { ConfirmDialog } from './components/ui';
+import { ConfirmDialog, Modal } from './components/ui';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { useChannels } from './hooks/useChannels';
 import { useChat } from './hooks/useChat';
@@ -70,6 +72,9 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
   sidebarCollapsed: boolean; onSidebarCollapsedChange: (collapsed: boolean) => void;
 }) {
   const toast = useToast();
+  const workspace = useWorkspace();
+  const company = workspace.status.mode === 'enterprise';
+  const [spaceOpen, setSpaceOpen] = useState(false);
   const { settings, setLLM, setGeneral } = useSettings();
   useTheme();
 
@@ -297,7 +302,7 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
         onCollapsedChange={onSidebarCollapsedChange}
         onPinBot={(id, pinned) => { void handlePinBot(id, pinned); }}
         onConfigureBot={id => setEditBot(bots.find(bot => bot.id === id) ?? null)}
-        onCopyBot={setSharingBotId}
+        onCopyBot={id => company ? toast.info('公司 Bot 分享尚未开放', '当前版本先提供个人空间隔离，内部共享目录将单独开放。') : setSharingBotId(id)}
         onConfigureGroup={id => setEditGroup(groups.find(group => group.id === id) ?? null)}
         onRenameBot={id => setRenameBot(bots.find(bot => bot.id === id) ?? null)}
         onDeleteBot={id => { setDeleteBotError(''); setDeleteBot(bots.find(bot => bot.id === id) ?? null); }}
@@ -370,16 +375,19 @@ function AppContent({ bots, activeBot, sel, groups, groupsError, onSelectBot, on
       />
 
       {/* ── 主区域 ──────────────────────────────────────── */}
+      <Modal open={spaceOpen} onClose={() => setSpaceOpen(false)} title="使用空间" size="lg"><CompanyPanel /></Modal>
       <div className="app-main" role="main">
         <TitleBar
-          onOpenGuide={() => guide.setOpen(true)}
+          workspaceLabel={company ? `${workspace.status.connection?.organization} · ${workspace.status.connection?.userName}` : '个人空间'}
+          onOpenWorkspace={() => setSpaceOpen(true)}
+          onOpenGuide={() => company ? toast.info('公司空间', '模型由管理员配置。你可以创建自己的 Bot，并在应用连接中授权需要的平台。') : guide.setOpen(true)}
           title={view === 'chat' ? (isGroup ? activeGroup?.title ?? '群聊' : activeBot.name) : VIEW_TITLES[view]}
           settingsOpen={view !== 'chat'}
           onOpenMenu={() => setMobileOpen(true)}
         />
         {view !== 'chat' && <SettingsNav view={view} onNavigate={setView} memoryCount={memoryCount} />}
 
-        <GettingStarted guide={guide} modelConfigured={health.state === 'online' && health.health?.demoMode === false} onNavigate={navigateGuide} />
+        {!company && <GettingStarted guide={guide} modelConfigured={health.state === 'online' && health.health?.demoMode === false} onNavigate={navigateGuide} onConnectCompany={() => { guide.dismiss(); setSpaceOpen(true); }} />}
 
         {view === 'chat' && (isGroup
           ? <GroupChatRoute key={`${sel.id}:${groupRevision}`} groupId={sel.id} bots={bots} offline={health.state === 'offline'} onRetryConnection={() => void health.refresh()} retrying={health.state === 'connecting'} onSpeakingChange={setGroupSpeaking} />
@@ -463,7 +471,9 @@ function dropStored(key: string): void {
   try { localStorage.removeItem(key); } catch { /* Optional preference storage. */ }
 }
 
-export default function App() {
+export function AppWorkspace() {
+  const { scope, status } = useWorkspace();
+  const storageKey = useCallback((key: string) => scope === 'personal' ? key : `${scope}:${key}`, [scope]);
   // Keep layout outside the keyed conversation subtree so switching Bots never resets it.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored('soren.sidebar-collapsed') === 'true');
   const changeSidebarCollapsed = useCallback((collapsed: boolean) => {
@@ -486,15 +496,15 @@ export default function App() {
   const chooseBot = useCallback((id: string, conversationId?: string) => {
     setInitialConversation(conversationId ?? null);
     setActiveBotID(id); setActiveID(id); setActiveGroupID(null);
-    writeStored('soren.active-bot', id);
-    dropStored('soren.active-group');
-  }, []);
+    writeStored(storageKey('soren.active-bot'), id);
+    dropStored(storageKey('soren.active-group'));
+  }, [storageKey]);
   const chooseGroup = useCallback((id: string) => {
     setInitialConversation(null);
     setActiveGroupID(id);
-    writeStored('soren.active-group', id);
-    dropStored('soren.active-bot');
-  }, []);
+    writeStored(storageKey('soren.active-group'), id);
+    dropStored(storageKey('soren.active-bot'));
+  }, [storageKey]);
 
   const reload = useCallback(async () => {
     try {
@@ -506,13 +516,13 @@ export default function App() {
   /** 启动恢复：优先上次打开的群，群已不存在则回落到上次的 Bot */
   useEffect(() => {
     if (restored || !botsLoaded || groupList.loading) return;
-    const savedGroup = readStored('soren.active-group');
+    const savedGroup = readStored(storageKey('soren.active-group'));
     // 用 state 而不是 ref：与下面的选中项更新落在同一次渲染里，
     // 自动回退读到的是恢复后的选择，不会用旧值把它覆盖掉
     if (savedGroup && groupList.groups.some(group => group.id === savedGroup)) {
       setRestored(true); chooseGroup(savedGroup); return;
     }
-    const savedBot = readStored('soren.active-bot') || 'soren';
+    const savedBot = readStored(storageKey('soren.active-bot')) || 'soren';
     setRestored(true);
     chooseBot(bots.some(b => b.id === savedBot && b.status !== 'archived') ? savedBot : 'soren');
   }, [restored, botsLoaded, groupList.loading, groupList.groups, bots, chooseBot, chooseGroup]);
@@ -544,5 +554,9 @@ export default function App() {
     onBotCreated={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }}
     onBotUpdated={bot => setBots(previous => previous.map(item => item.id === bot.id ? bot : item))}
     onGroupCreated={chooseGroup}
-  /><TemplateImportHost onImported={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }} /></ToastProvider>;
+  />{status.mode === 'personal' && <TemplateImportHost onImported={bot => { setBots(previous => [...previous.filter(item => item.id !== bot.id), bot]); chooseBot(bot.id); void reload(); }} />}</ToastProvider>;
+}
+
+export default function App() {
+  return <WorkspaceProvider><AppWorkspace /></WorkspaceProvider>;
 }

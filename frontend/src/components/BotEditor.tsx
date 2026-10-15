@@ -4,6 +4,7 @@ import {
   BotVersionHistory,
 } from "./BotConfigurationFields";
 import { TemplatePublisher } from "./BotTemplates";
+import { useWorkspace } from "./WorkspaceProvider";
 import { useState } from "react";
 import {
   Button,
@@ -40,6 +41,7 @@ export function BotEditor({
   onClose: () => void;
   onSaved: (bot: Bot) => Promise<void>;
 }) {
+  const company = useWorkspace().status.mode === 'enterprise';
   const [sharing, setSharing] = useState(false);
   const [draft, setDraft] = useState<Bot>(initial);
   const [saving, setSaving] = useState(false);
@@ -233,7 +235,7 @@ export function BotEditor({
               <div className="space-y-3 border-t border-line pt-5">
                 <Button
                   disabled={
-                    saving ||
+                    company || saving ||
                     generating ||
                     changed ||
                     !initial.instructions.trim()

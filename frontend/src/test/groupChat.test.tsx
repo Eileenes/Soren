@@ -103,7 +103,7 @@ vi.mock('../services/connections', async (importOriginal) => {
   return { ...actual, connectionRequest: vi.fn().mockResolvedValue({ available: false, enabled: false, online: false, devices: [], pending: null }) };
 });
 
-import App from '../App';
+import { AppWorkspace as App } from '../App';
 import { useGroupChat } from '../hooks/useGroupChat';
 import { resetSettings } from '../services/settingsStore';
 
