@@ -344,6 +344,7 @@ export interface ChannelFieldSpec {
 
 /** GET /api/health 响应体 */
 export interface HealthStatus {
+  model?: string;
   llmProvider?: string;
   demoMode?: boolean;
   status: string;

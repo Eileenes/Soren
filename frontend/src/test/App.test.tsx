@@ -131,7 +131,7 @@ vi.mock('../services/connections', async (importOriginal) => {
 });
 
 import { DEFAULT_BOT } from '../services/agents';
-import App from '../App';
+import { AppWorkspace as App } from '../App';
 import { resetSettings } from '../services/settingsStore';
 
 /** 让所有接口都表现为后端离线 */

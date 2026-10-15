@@ -41,7 +41,7 @@ func TestAppCORSAllowsOnlyTrustedOrigins(t *testing.T) {
 			request := httptest.NewRequest(http.MethodOptions, "/api/health", nil)
 			request.Header.Set("Origin", test.origin)
 			request.Header.Set("Access-Control-Request-Method", "GET")
-			request.Header.Set("Access-Control-Request-Headers", "X-User-ID")
+			request.Header.Set("Access-Control-Request-Headers", "X-User-ID, X-Soren-Workspace")
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
 			if test.allowed {

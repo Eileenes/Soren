@@ -29,10 +29,11 @@ export function useGettingStarted() {
   return {progress, open, setOpen, save, dismiss};
 }
 
-export function GettingStarted({guide, modelConfigured, onNavigate}: {
+export function GettingStarted({guide, modelConfigured, onNavigate, onConnectCompany}: {
   guide: ReturnType<typeof useGettingStarted>;
   modelConfigured: boolean;
   onNavigate: (view: ViewId, example?: boolean) => void;
+  onConnectCompany?: () => void;
 }) {
   const {progress, open, setOpen, save, dismiss} = guide;
   const current = STEPS[progress.step];
@@ -45,7 +46,8 @@ export function GettingStarted({guide, modelConfigured, onNavigate}: {
     <Modal open={open} onClose={dismiss} title="开始使用 Soren" size="lg" footer={<><Button variant="ghost" onClick={dismiss}>跳过引导</Button><Button variant="primary" onClick={() => go(progress.active ? progress.step : 0)}>{progress.active ? '继续引导' : '开始配置'}</Button></>}>
       <div className="welcome-intro"><img src="/app-icon.svg" alt="" width={72} height={72} /><div><p className="welcome-headline">让它成为你的日常助手。</p><p className="text-sm text-ink-2">先连接模型，再交给它第一件事。</p></div></div>
       <ol className="welcome-steps">{STEPS.map((step, index) => <li key={step.title}><span className="welcome-number">{index + 1}</span><div><strong>{step.title}</strong>{step.optional && <small>可选</small>}<p>{step.detail}</p></div></li>)}</ol>
-      <p className="welcome-note">本地使用无需登录；未连接模型时仅为演示。手机扫码关联尚未开放。</p>
+      <p className="welcome-note">个人使用无需登录；未连接模型时仅为演示。手机扫码关联尚未开放。</p>
+      {onConnectCompany && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4"><span className="text-sm text-ink-2">公司已部署 Soren？使用服务器地址进入公司空间。</span><Button variant="ghost" onClick={onConnectCompany}>连接公司服务器</Button></div>}
     </Modal>
     {progress.active && !open && <section className="setup-guide" aria-label="使用引导步骤">
       <div className="setup-guide-copy"><span className="setup-guide-count">{progress.step + 1} / {STEPS.length}</span><div><strong>{current.title}</strong><p>{progress.step === 0 && modelConfigured ? '模型已配置，请先发一句话验证回复。' : current.detail}</p>{progress.step === 2 && !modelConfigured && <p className="text-warning">尚未配置模型，任务将使用演示模式。</p>}</div></div>

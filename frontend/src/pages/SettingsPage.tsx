@@ -1,6 +1,7 @@
 import { MobileDevices } from '../components/MobileDevices';
 import { TemplateSettingsForm } from '../components/TemplateSettingsForm';
-import { OAuthSettingsForm } from '../components/OAuthSettingsForm';
+import { CompanyPanel } from '../components/CompanyPanel';
+import { useWorkspace } from '../components/WorkspaceProvider';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { cn, formatDateTime } from '../utils/format';
@@ -8,7 +9,7 @@ import { PageContainer, PageHeading } from '../components/layout/Shell';
 import { IconCheck, IconDatabase, IconKey, IconMoon, IconRefresh, IconSettings, IconSun } from '../components/icons';
 import { Button, PasswordField, SelectField, Switch, TextField } from '../components/ui';
 import type { ConnectionState, HealthStatus, LanguageCode, LLMProviderId, ThemeMode } from '../types';
-import { getApiBaseUrl, setApiBaseUrl } from '../services/api';
+import { getApiBaseUrl } from '../services/api';
 
 interface DesktopConfig {
   provider: 'openai' | 'anthropic';
@@ -75,9 +76,11 @@ function SettingsSection({ title, description, number, children }: {
 export function SettingsPage({ connection, health, healthError, lastCheckedAt, onRefreshHealth,
   theme, onSetTheme, language, onSetLanguage, showMemoryBadge, onSetShowMemoryBadge,
   llm, onSetLLM, onNotify }: SettingsPageProps) {
+  const workspace = useWorkspace();
+  const company = workspace.status.mode === 'enterprise';
   const [desktop] = useState(() => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window);
   const [desktopConfig, setDesktopConfig] = useState<DesktopConfig | null>(null);
-  const [loadingConfig, setLoadingConfig] = useState(desktop);
+  const [loadingConfig, setLoadingConfig] = useState(desktop && !company);
   const [configError, setConfigError] = useState<string | null>(null);
   const [provider, setProvider] = useState<LLMProviderId>(llm.provider);
   const [endpoint, setEndpoint] = useState(llm.baseUrl || 'https://api.openai.com/v1');
@@ -95,10 +98,9 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
   }, [provider, endpoint, apiKey]);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [serviceURL, setServiceURL] = useState(getApiBaseUrl);
 
   useEffect(() => {
-    if (!desktop) return;
+    if (!desktop || company) return;
     let active = true;
     void invoke<DesktopConfig>('get_desktop_config').then((config) => {
       if (!active) return;
@@ -110,7 +112,7 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
       if (active) setConfigError(errorText(error));
     }).finally(() => { if (active) setLoadingConfig(false); });
     return () => { active = false; };
-  }, [desktop]);
+  }, [desktop, company]);
 
   const effectiveProvider = provider === 'anthropic' ? 'anthropic' : 'openai';
   const canKeepKey = Boolean(desktopConfig?.configured && desktopConfig.provider === effectiveProvider && normalizeURL(desktopConfig.baseURL) === normalizeURL(endpoint));
@@ -133,7 +135,7 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
     try {
       await Promise.all([
         onRefreshHealth(),
-        desktop ? invoke<DesktopConfig>('get_desktop_config').then((config) => { setDesktopConfig(config); setConfigError(null); }) : Promise.resolve(),
+        desktop && !company ? invoke<DesktopConfig>('get_desktop_config').then((config) => { setDesktopConfig(config); setConfigError(null); }) : Promise.resolve(),
       ]);
     } catch (error) { onNotify('error', '暂时无法刷新状态', errorText(error)); }
     finally { setRefreshing(false); }
@@ -177,21 +179,12 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
     catch (error) { onNotify('error', '无法打开数据文件夹', errorText(error)); }
   };
 
-  const applyServiceURL = () => {
-    try {
-      const url = new URL(serviceURL);
-      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error();
-      setApiBaseUrl(serviceURL);
-      setServiceURL(getApiBaseUrl());
-      void refresh();
-    } catch { onNotify('error', '请输入有效的服务地址'); }
-  };
-
   return (
     <PageContainer widthClass="max-w-5xl">
       <PageHeading icon={<IconSettings size={19} />} title="设置" />
       <div className="space-y-5 pb-8">
-        <SettingsSection number="01" title="模型">
+        <SettingsSection number="01" title="使用空间"><CompanyPanel /></SettingsSection>
+        {company ? <SettingsSection number="02" title="公司模型" description="模型由公司管理员统一配置，任务在公司服务器上执行。"><p className="text-sm text-ink-2">当前模型：{health?.model || '等待服务返回'}</p></SettingsSection> : <SettingsSection number="02" title="模型">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-3 px-4 py-3 text-sm">
             <span className="flex items-center gap-2 text-ink-2"><IconKey size={16} />{loadingConfig ? '正在读取本地配置…' : desktopConfig?.configured ? '已保存模型凭据' : desktop ? '添加 API Key，开启第一段对话' : '浏览器预览模式'}</span>
             <span className="text-xs text-ink-3">{desktop ? '凭据仅保存在本机' : '请在桌面端配置模型连接'}</span>
@@ -234,11 +227,7 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
               </div>
             </details>
           </div>
-        </SettingsSection>
-
-        <SettingsSection number="02" title="OAuth 登录配置" description="接入公司的统一身份认证，先保存应用凭据与授权地址。">
-          <OAuthSettingsForm desktop={desktop} onNotify={onNotify} />
-        </SettingsSection>
+        </SettingsSection>}
 
         <SettingsSection number="03" title="外观">
           <div className="grid grid-cols-3 gap-3 sm:gap-5">
@@ -256,23 +245,24 @@ export function SettingsPage({ connection, health, healthError, lastCheckedAt, o
           <details className="mt-5 text-sm text-ink-2"><summary className="cursor-pointer py-1">语言偏好</summary><div className="mt-3 max-w-xs"><SelectField label="偏好语言" value={language} onChange={onSetLanguage} options={[{ value: 'zh-CN', label: '简体中文' }, { value: 'en-US', label: 'English' }]} helper="当前界面以中文呈现；完整英文界面正在规划中。" /></div></details>
         </SettingsSection>
 
-        <SettingsSection number="04" title="移动端与同步"><MobileDevices /></SettingsSection>
-        <SettingsSection number="05" title="Bot 模板服务"><TemplateSettingsForm /></SettingsSection>
+        {!company && <SettingsSection number="04" title="移动端与同步"><MobileDevices /></SettingsSection>}
+        {!company && <SettingsSection number="05" title="Bot 模板服务"><TemplateSettingsForm /></SettingsSection>}
         <SettingsSection number="06" title="数据">
+          {company ? <div className="text-sm leading-7 text-ink-2"><p>{workspace.status.connection?.organization} · {workspace.status.connection?.userName} 的个人数据区</p><p className="mt-2">Bot、聊天、记忆、任务和连接器保存在公司服务器。退出公司空间后，可以继续使用本机的个人资料。</p></div> : <>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3"><span className="rounded-xl bg-primary-start/10 p-3 text-primary-start"><IconDatabase size={21} /></span><div><p className="text-sm font-medium text-ink-1">本地数据空间 · 无需登录</p><p className="mt-1 break-all text-xs text-ink-2">{desktopConfig?.dataDir ?? (desktop ? '正在读取存储位置…' : '在桌面应用中管理本地文件')}</p></div></div>
             <Button disabled={!desktop} onClick={() => void openData()}>打开数据文件夹</Button>
           </div>
           <p className="mt-4 text-xs leading-6 text-ink-3">对话时，相关内容会发送至你配置的模型服务。当前记忆状态：{health?.memoryEnabled === undefined ? '等待连接' : health.memoryEnabled ? '已开启' : '未开启'}。</p>
+          </>}
         </SettingsSection>
 
         <details className="rounded-xl border border-line px-5 py-4 text-sm text-ink-2">
-          <summary className="cursor-pointer"><span className="ml-1">本地服务</span><span className={cn('ml-3 text-xs', connection === 'online' ? 'text-primary-start' : 'text-ink-3')}>{connection === 'online' ? '运行正常' : connection === 'connecting' ? '正在连接' : '等待连接'}</span></summary>
+          <summary className="cursor-pointer"><span className="ml-1">{company ? '公司服务' : '本地服务'}</span><span className={cn('ml-3 text-xs', connection === 'online' ? 'text-primary-start' : 'text-ink-3')}>{connection === 'online' ? '运行正常' : connection === 'connecting' ? '正在连接' : '等待连接'}</span></summary>
           <div className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-ink-3">最近检测：{lastCheckedAt ? formatDateTime(new Date(lastCheckedAt).toISOString()) : '尚未检测'}</p><Button size="sm" variant="ghost" loading={refreshing} leadingIcon={<IconRefresh size={14} />} onClick={() => void refresh()}>重新检测</Button></div>
             {(healthError || desktopConfig?.startupError) && <p className="break-words text-xs leading-6 text-error">{desktopConfig?.startupError ?? healthError}</p>}
-            <TextField label="后端服务地址" value={serviceURL} onChange={(event) => setServiceURL(event.target.value)} helper="桌面端默认为 http://localhost:8080。" />
-            <Button size="sm" onClick={applyServiceURL}>应用服务地址</Button>
+            <p className="break-all text-xs text-ink-3">{company ? workspace.status.connection?.serverUrl : getApiBaseUrl()}</p>
           </div>
         </details>
       </div>

@@ -1,6 +1,5 @@
-import axios from 'axios';
 import { invoke } from '@tauri-apps/api/core';
-import { getApiBaseUrl, normalizeError } from './api';
+import { http, normalizeError } from './api';
 import { getActiveBotID } from './botScope';
 import { keyKindHosts, type KeyKindId } from '../components/connectorKinds';
 
@@ -10,7 +9,7 @@ export interface DeviceLogin { id: string; userCode: string; url: string; interv
 export interface Invocation { connectionName: string; account: string; id: string; runId: string; botId: string; tool: string; arguments: string; status: string; result: string; createdAt: string }
 export interface Artifact { id: string; title: string; content: string; botId: string }
 export async function connectionRequest<T>(method: string, path: string, data?: unknown): Promise<T> {
-  try { return (await axios.request<T>({method, url: getApiBaseUrl() + '/api' + path, data, headers: {'X-Bot-ID': getActiveBotID()}, timeout: 55000})).data; }
+  try { return (await http.request<T>({method, url: '/api' + path, data, headers: {'X-Bot-ID': getActiveBotID()}, timeout: 55000})).data; }
   catch (e) { throw normalizeError(e); }
 }
 export async function openExternal(url: string) {

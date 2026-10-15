@@ -20,6 +20,7 @@ import { Button, IconButton, SkeletonList, TypingDots } from '../components/ui';
 import { useScrollPosition } from '../hooks/useUtilities';
 import { resolveMentionIds, useGroupChat, type UseGroupChatResult } from '../hooks/useGroupChat';
 import type { ChatMessage } from '../hooks/useChat';
+import { useWorkspace } from '../components/WorkspaceProvider';
 
 /**
  * 用户偏离底部多少像素内仍算「贴着底部」
@@ -40,7 +41,8 @@ function GroupDiscussionPrompt({ groupId, requestId, cancelled, offline, onConti
   offline: boolean;
   onContinue: () => void;
 }) {
-  const storageKey = `soren.group-discussion-choice.v1:${groupId}`;
+  const { scope } = useWorkspace();
+  const storageKey = `soren.group-discussion-choice.v1:${scope === 'personal' ? '' : `${scope}:`}${groupId}`;
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(storageKey) === requestId; }
     catch { return false; }
