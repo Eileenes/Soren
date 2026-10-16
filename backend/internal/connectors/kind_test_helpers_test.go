@@ -80,8 +80,8 @@ func assertApprovalRequired(t *testing.T, s *Service, approval map[string]bool) 
 	if _, ok := catalog["c_k1_"+"nope"]; ok {
 		t.Fatal("unexpected tool")
 	}
-	if b, e := s.catalog("b"); e != nil || len(b) != 3 {
-		t.Fatal("connector leaked to a bot without permission", len(b))
+	if b, e := s.catalog("b"); e != nil || len(b) != len(catalog) {
+		t.Fatal("workspace connection missing from other bot", len(b))
 	}
 }
 

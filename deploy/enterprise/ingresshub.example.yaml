@@ -1,0 +1,35 @@
+# Reference only. Copy into ops/ingresshub in the deployment stage after replacing
+# every REPLACE value. This file does not deploy from the Soren repository.
+name: soren-bot
+owner: REPLACE_WITH_YOUR_USERNAME
+image: portus.in.chaitin.net/REPLACE_PROJECT/soren-enterprise:REPLACE_VERSION
+port: 8091
+replicas: 1
+health: /healthz
+volume:
+  mountPath: /data
+  size: 50Gi
+databases:
+  - type: postgres
+    name: soren
+secrets:
+  name: soren-bot-secrets
+env:
+  ENTERPRISE_AUTH_MODE: ingresshub
+  ENTERPRISE_PUBLIC_URL: https://soren-bot.app.in.chaitin.net
+  ENTERPRISE_NAME: 公司空间
+  ENTERPRISE_LISTEN: 0.0.0.0:8091
+  SOREN_DATA_DIR: /data
+  GIN_MODE: release
+  ENTERPRISE_ALLOWED_SUBJECTS: REPLACE_WITH_PILOT_SUBJECT_IDS
+  SOREN_MODEL: REPLACE_WITH_COMPANY_MODEL
+  OPENAI_BASE_URL: https://REPLACE_WITH_MODEL_ENDPOINT/v1
+  ENTERPRISE_MODEL_CONCURRENCY: "8"
+# Native API callers have no SSO cookie. Soren still authenticates all /api/*
+# requests. NEVER exempt /auth/browser or /auth/confirm: they consume SSO JWTs.
+authExempt:
+  - /.well-known/soren
+  - /auth/attempts
+  - /auth/poll
+  - /api/*
+  - /healthz

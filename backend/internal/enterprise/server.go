@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type User struct {
@@ -45,6 +46,7 @@ type Server struct {
 	mu         sync.Mutex
 	attempts   map[string]*attempt
 	loginLimit *rate.Limiter
+	profiles   profileVerifier
 }
 
 func New(c Config, db *gorm.DB, factory WorkspaceFactory) (*Server, error) {
@@ -87,7 +89,7 @@ func (s *Server) activeUser(db *gorm.DB, id string) (User, error) {
 		}
 		return u, errUnavailable
 	}
-	if u.Disabled || (!s.Config.AllowedSubjects["*"] && !s.Config.AllowedSubjects[u.Subject]) || u.Provider != s.Config.UserInfoURL {
+	if u.Disabled || (!s.Config.AllowedSubjects["*"] && !s.Config.AllowedSubjects[u.Subject]) || u.Provider != s.Config.identityProvider() {
 		return u, errUnauthorized
 	}
 	return u, nil
@@ -130,7 +132,11 @@ func (s *Server) Handler() http.Handler {
 	})
 	m.HandleFunc("POST /auth/attempts", s.startLogin)
 	m.HandleFunc("GET /auth/browser", s.browserLogin)
-	m.HandleFunc("GET /auth/callback", s.callback)
+	if s.Config.AuthMode == "ingresshub" {
+		m.HandleFunc("POST /auth/confirm", s.confirmIngressHub)
+	} else {
+		m.HandleFunc("GET /auth/callback", s.callback)
+	}
 	m.HandleFunc("POST /auth/poll", s.pollLogin)
 	m.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		u, err := s.authenticate(r)
@@ -170,7 +176,7 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 		// Native clients use their local authenticated bridge; no cross-origin browser API access.
 		if origin := r.Header.Get("Origin"); origin != "" && origin != s.Config.PublicURL {
 			fail(w, 403, "来源不受信任")
@@ -181,8 +187,20 @@ func (s *Server) Handler() http.Handler {
 	})
 }
 func (s *Server) saveUser(subject, name string) (User, error) {
-	u := User{ID: uuid.NewString(), Provider: s.Config.UserInfoURL, Subject: subject, Name: name}
-	err := s.DB.Where("provider = ? AND subject = ?", u.Provider, subject).FirstOrCreate(&u).Error
+	// 查询时不能预填随机主键：GORM 会将主键加入查询条件，旧账号永远查不到。
+	var u User
+	provider := s.Config.identityProvider()
+	err := s.DB.Where("provider = ? AND subject = ?", provider, subject).First(&u).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		candidate := User{ID: uuid.NewString(), Provider: provider, Subject: subject, Name: name}
+		// 多个登录请求同时首次建号时，只保留一个身份，不覆盖停用状态或用户 ID。
+		err = s.DB.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "provider"}, {Name: "subject"}}, DoNothing: true,
+		}).Create(&candidate).Error
+		if err == nil {
+			err = s.DB.Where("provider = ? AND subject = ?", provider, subject).First(&u).Error
+		}
+	}
 	if err != nil {
 		return u, err
 	}

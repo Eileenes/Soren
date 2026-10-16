@@ -27,12 +27,13 @@ describe('ConnectionsPanel API-key connectors', () => {
     render(<ConnectionsPanel />);
     fireEvent.click(await screen.findByRole('button', { name: `添加 ${k.title}` }));
     fireEvent.change(await screen.findByLabelText(`${k.title} ${keyCredentialLabel(id as KeyKindId)}`), { target: { value: ' secret-key ' } });
-    fireEvent.click(await screen.findByLabelText('Soren'));
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('验证并连接'));
     const transport = preset
       ? { kind: 'mcp', endpoint: preset.endpoint, name: preset.title }
       : { kind: id };
-    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ ...transport, token: 'secret-key', allowedBots: ['soren'] })));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ ...transport, token: 'secret-key' })));
+    expect(request.mock.calls.find(([method]) => method === 'POST')?.[2]).not.toHaveProperty('allowedBots');
   });
 
   it.each(mcpPresets)('provides a credential-only $title form and its official link', async preset => {
@@ -64,7 +65,7 @@ describe('ConnectionsPanel API-key connectors', () => {
     expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ token: 'wrong-key' }));
   });
 
-  it.each(mcpPresets)('recognizes saved $title connections and preserves Bot permission controls', async preset => {
+  it.each(mcpPresets)('recognizes legacy $title connections and offers workspace-wide enable/disable', async preset => {
     const saved = { id: preset.id, kind: 'mcp', name: '我的工具包', endpoint: `${preset.endpoint}/`, allowedBots: ['soren'], enabled: true, version: 3, tools: [{ name: 'search' }] };
     const generic = { ...saved, id: 'other', name: '其他 MCP', endpoint: 'https://example.com/mcp' };
     request.mockImplementation(async (method: string) => method === 'GET' ? [saved, generic] : {});
@@ -74,14 +75,11 @@ describe('ConnectionsPanel API-key connectors', () => {
     const accounts = await screen.findByRole('region', { name: '已连接账号' });
     expect(within(accounts).getByText('我的工具包')).toBeInTheDocument();
     expect(within(accounts).queryByText('其他 MCP')).not.toBeInTheDocument();
-    fireEvent.click(within(accounts).getByRole('button', { name: '权限' }));
-    expect(screen.queryByLabelText(`${preset.title} ${preset.credential}`)).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Soren')).toBeChecked();
-    fireEvent.click(screen.getByLabelText('Soren'));
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    await waitFor(() => expect(request).toHaveBeenCalledWith('PUT', `/connections/${preset.id}`, expect.objectContaining({ kind: 'mcp', allowedBots: [], version: 3 })));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: `添加 ${preset.title}` }));
+    expect(within(accounts).getByText('当前空间所有 Bot 和群聊可用')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '权限' })).not.toBeInTheDocument();
+    fireEvent.click(within(accounts).getByRole('button', { name: '停用' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('PUT', `/connections/${preset.id}`, { enabled: false, version: 3 }));
     fireEvent.click(within(await screen.findByRole('region', { name: '已连接账号' })).getByRole('button', { name: '断开' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('DELETE', `/connections/${preset.id}`));
   });
@@ -113,10 +111,21 @@ describe('ConnectionsPanel API-key connectors', () => {
     await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('请填写 视频 API Key'));
     expect(request.mock.calls.some(([method]) => method === 'POST')).toBe(false);
     fireEvent.change(key, { target: { value: ' video-key ' } });
-    fireEvent.click(within(dialog).getByLabelText('Soren'));
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: '验证并连接' }));
-    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ kind: 'video', name: '视频 API', token: 'video-key', allowedBots: ['soren'] })));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections', expect.objectContaining({ kind: 'video', name: '视频 API', token: 'video-key' })));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('请重新连接');
     expect(dialog).toBeInTheDocument();
   });
+  it('starts Gmail authorization without a Bot selection', async () => {
+    request.mockImplementation(async (method: string) => method === 'GET' ? [] : {url: 'https://accounts.google.com/test'});
+    render(<ConnectionsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: '添加 Gmail' }));
+    fireEvent.change(screen.getByLabelText('Google Client ID'), {target: {value: 'client-id'}});
+    fireEvent.change(screen.getByLabelText('Google Client Secret'), {target: {value: 'client-secret'}});
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: '前往 Google 授权'}));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/connections/gmail/authorize', {clientId: 'client-id', clientSecret: 'client-secret'}));
+  });
+
 });

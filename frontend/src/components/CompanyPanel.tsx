@@ -5,7 +5,10 @@ import { Button, TextField } from './ui';
 import { IconCheck, IconDatabase, IconPlug } from './icons';
 
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
-export function CompanyPanel() {
+export function CompanyPanel({ onSelected }: { onSelected?: () => void } = {}) {
+  const onboarding = Boolean(onSelected);
+  const [choice, setChoice] = useState<'enterprise' | 'personal'>('enterprise');
+  const autoCompleted = useRef<string | null>(null);
   const { status, reload, apply, notify } = useWorkspace();
   const company = status.mode === 'enterprise';
   const [url, setURL] = useState(status.connection?.serverUrl ?? '');
@@ -58,25 +61,30 @@ export function CompanyPanel() {
     timer = setTimeout(poll, 1500);
     return () => { active = false; clearTimeout(timer); };
   }, [login, account, clearLogin]);
-  const verify = async () => {
+  const verify = async (connect = false) => {
     const id = ++generation.current;
     setBusy(true); setError(''); setDiscovery(null);
-    try { const found = await companyAPI.discover(url.trim()); if (id === generation.current) setDiscovery(found); }
+    try {
+      const found = await companyAPI.discover(url.trim());
+      if (id !== generation.current) return;
+      setDiscovery(found);
+      if (connect) await signIn(found.serverUrl);
+    }
     catch (e) { if (id === generation.current) setError(message(e)); }
     finally { if (id === generation.current) setBusy(false); }
   };
-  const signIn = async () => {
-    if (!discovery) return;
+  const signIn = async (serverUrl = discovery?.serverUrl) => {
+    if (!serverUrl) return;
     const id = ++generation.current;
     setBusy(true); setError('');
     try {
-      const next = await companyAPI.login(discovery.serverUrl);
+      const next = await companyAPI.login(serverUrl);
       if (id !== generation.current) { await companyAPI.cancel(next.id); return; }
       pendingID.current = next.id; setLogin(next); setAccount(null); await openCompanyLogin(next);
     } catch (e) { if (id === generation.current) setError(message(e)); }
     finally { if (id === generation.current) setBusy(false); }
   };
-  const complete = async () => {
+  const complete = useCallback(async () => {
     if (!login) return;
     if (Date.now() >= Date.parse(login.expiresAt)) { clearLogin(login.id, '登录已过期，请重新登录。'); return; }
     const id = ++generation.current;
@@ -85,7 +93,7 @@ export function CompanyPanel() {
     try {
       const next = await companyAPI.complete(login.id);
       if (id !== generation.current) return;
-      pendingID.current = null; apply(next);
+      pendingID.current = null; onSelected?.(); apply(next);
     } catch (e) {
       if (id !== generation.current) return;
       if (e instanceof CompanyRequestError && e.status === 401) clearLogin(login.id, message(e));
@@ -96,7 +104,12 @@ export function CompanyPanel() {
       if (Date.now() >= Date.parse(login.expiresAt)) clearLogin(login.id, '登录已过期，请重新登录。');
       setBusy(false);
     }
-  };
+  }, [login, clearLogin, apply, reload, onSelected]);
+  useEffect(() => {
+    if (!onboarding || !account || !login || autoCompleted.current === login.id) return;
+    autoCompleted.current = login.id;
+    void complete();
+  }, [onboarding, account, login, complete]);
   const disconnect = async () => {
     setBusy(true); setError('');
     try {
@@ -104,6 +117,7 @@ export function CompanyPanel() {
       if (!result.revoked || !result.credentialDeleted) {
         notify('已切回个人空间。部分退出清理未完成：若服务器离线，远端会话将在到期后失效；系统凭据删除失败时请重新登录后再次退出。');
       }
+      onSelected?.();
       apply({ mode: 'personal', connection: status.connection });
     } catch (e) { setError(message(e)); await reload().catch(() => {}); } finally { setBusy(false); }
   };
@@ -113,6 +127,26 @@ export function CompanyPanel() {
     try { await companyAPI.cancel(login.id); pendingID.current = null; setLogin(null); setAccount(null); }
     catch (e) { setError(message(e)); } finally { setBusy(false); }
   };
+  if (onboarding) return <section aria-label="选择使用空间" className="space-y-5">
+    <div role="radiogroup" aria-label="空间类型" className="grid gap-3 sm:grid-cols-2">
+      {([['enterprise', '公司空间', '连接公司服务，使用公司提供的模型。'], ['personal', '个人空间', '直接进入，Bot 和数据保存在这台电脑。']] as const).map(([value, title, detail]) => <label key={value} className={'cursor-pointer rounded-xl border p-4 ' + (choice === value ? 'border-primary-start bg-primary-start/5' : 'border-line')}>
+        <span className="flex items-center gap-2 text-sm font-semibold"><input type="radio" aria-label={title} aria-describedby={`workspace-${value}-detail`} name="workspace-choice" value={value} checked={choice === value} disabled={busy || Boolean(login)} onChange={() => { setChoice(value); setError(''); }} />{title}</span>
+        <span id={`workspace-${value}-detail`} className="mt-2 block text-sm leading-6 text-ink-2">{detail}</span>
+      </label>)}
+    </div>
+    {choice === 'enterprise' ? <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (!busy && !login && url.trim()) {
+        if (company && !status.needsLogin && !status.error && url.trim().replace(/\/$/, '') === status.connection?.serverUrl.replace(/\/$/, '')) onSelected?.();
+        else void verify(true);
+      } }}>
+      <TextField label="公司服务器地址" placeholder="https://soren.example.com" value={url} disabled={busy || Boolean(login)} onChange={e => { generation.current++; setURL(e.target.value); setDiscovery(null); setError(''); }} helper="填写管理员提供的地址，确认后通过浏览器完成公司登录。" />
+      {login ? <div className="space-y-3">
+        <p role="status" className="text-sm text-ink-2">{account ? `已登录：${account.userName}，正在进入公司空间…` : '请在浏览器完成公司登录，成功后将自动进入公司空间。'}</p>
+        <div className="flex flex-wrap gap-2">{account ? <Button disabled={busy} onClick={() => void complete()}>重试进入公司空间</Button> : <Button disabled={busy} onClick={() => void openCompanyLogin(login).catch(e => setError(message(e)))}>重新打开登录页面</Button>}<Button variant="ghost" disabled={busy} onClick={() => void cancel()}>取消登录</Button></div>
+      </div> : <Button type="submit" variant="primary" loading={busy} disabled={!url.trim()}>确认</Button>}
+    </form> : <Button variant="primary" loading={busy} onClick={() => { if (company) void disconnect(); else onSelected?.(); }}>确认</Button>}
+    {error && <p role="alert" className="bot-error">{error}</p>}
+    <p className="text-xs leading-6 text-ink-3">之后可以在顶部的使用空间入口切换。个人与公司空间的数据分别保存。</p>
+  </section>;
   return <section aria-label="使用空间" className="space-y-5">
     <div className="grid gap-3 sm:grid-cols-2">
       <div className={'rounded-xl border p-4 ' + (!company ? 'border-primary-start bg-primary-start/5' : 'border-line')}>

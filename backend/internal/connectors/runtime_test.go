@@ -23,10 +23,12 @@ import (
 type scripted struct {
 	calls      int
 	name, args string
+	tools      []llm.Tool
 }
 
-func (p *scripted) Chat(_ context.Context, m []llm.Message, _ *llm.Options) (*llm.Response, error) {
+func (p *scripted) Chat(_ context.Context, m []llm.Message, opts *llm.Options) (*llm.Response, error) {
 	p.calls++
+	p.tools = opts.Tools
 	if m[len(m)-1].Role == "tool" {
 		return &llm.Response{Content: "完成"}, nil
 	}
@@ -73,6 +75,38 @@ func pending(t *testing.T, s *Service) Invocation {
 	}
 	return inv
 }
+
+func TestNewTurnDoesNotReplayConversationHistory(t *testing.T) {
+	for _, oldToolCall := range []bool{false, true} {
+		t.Run(fmt.Sprintf("oldToolCall=%t", oldToolCall), func(t *testing.T) {
+			s := fixture(t)
+			previous := llm.Message{Role: "assistant", Content: "看不到任何可调用的工具"}
+			if oldToolCall {
+				// Even incomplete historical calls belong to a different run.
+				previous.ToolCalls = []llm.ToolCall{{ID: "old-call", Type: "function", Function: llm.Function{Name: "workspace_create", Arguments: `{"title":"Old","content":"Do not execute again"}`}}}
+			}
+			initial := []llm.Message{{Role: "user", Content: "旧问题"}, previous, {Role: "user", Content: "现在调用已连接的工具"}}
+			p := &scripted{name: "workspace_create", args: `{"title":"New","content":"Current result"}`}
+			for attempt := 0; attempt < 2; attempt++ {
+				response, err := s.Loop(context.Background(), p, "a", "r", 0, initial, &llm.Options{Model: "test"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if response.Content != "完成" {
+					t.Fatalf("returned historical response: %q", response.Content)
+				}
+			}
+			var artifacts []Artifact
+			if err := s.DB.Find(&artifacts).Error; err != nil {
+				t.Fatal(err)
+			}
+			if p.calls != 2 || len(p.tools) == 0 || len(artifacts) != 1 || artifacts[0].Content != "Current result" {
+				t.Fatalf("model calls=%d tools=%d artifacts=%+v", p.calls, len(p.tools), artifacts)
+			}
+		})
+	}
+}
+
 func TestLocalArtifactIsRealAndReplayDoesNotDuplicate(t *testing.T) {
 	s := fixture(t)
 	p := &scripted{name: "workspace_create", args: `{"title":"Weekly report","content":"# Actual saved content"}`}
@@ -96,6 +130,10 @@ func TestLocalArtifactIsRealAndReplayDoesNotDuplicate(t *testing.T) {
 func TestApprovalIsBoundAndResumesWithoutDuplicateSend(t *testing.T) {
 	s := fixture(t)
 	p := gmail(t, s)
+	initial := []llm.Message{{Role: "user", Content: "Old request"}, {Role: "assistant", Content: "Old response"}, {Role: "user", Content: "Send the email"}}
+	run := func(service *Service) (*llm.Response, error) {
+		return service.Loop(context.Background(), p, "a", "r", 0, initial, &llm.Options{Model: "test"})
+	}
 	sent := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sent++
@@ -106,7 +144,7 @@ func TestApprovalIsBoundAndResumesWithoutDuplicateSend(t *testing.T) {
 	}))
 	defer server.Close()
 	s.GoogleAPI = server.URL
-	if _, e := loop(s, p); !errors.Is(e, ErrApproval) {
+	if _, e := run(s); !errors.Is(e, ErrApproval) {
 		t.Fatal(e)
 	}
 	if sent != 0 {
@@ -127,10 +165,10 @@ func TestApprovalIsBoundAndResumesWithoutDuplicateSend(t *testing.T) {
 	}
 	next.GoogleAPI = server.URL
 	s.DB.Exec("UPDATE runs SET status='running'")
-	if _, e = loop(next, p); e != nil {
+	if _, e = run(next); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = loop(next, p); e != nil {
+	if _, e = run(next); e != nil {
 		t.Fatal(e)
 	}
 	if sent != 1 || p.calls != 2 {
@@ -189,8 +227,8 @@ func TestRevokedConnectionCannotExecuteApprovedCall(t *testing.T) {
 		t.Fatal("stale approval accepted")
 	}
 	other, _ := s.catalog("b")
-	if _, ok := other[p.name]; ok {
-		t.Fatal("connection leaked to other bot")
+	if _, ok := other[p.name]; !ok {
+		t.Fatal("workspace connection missing from other bot")
 	}
 }
 
@@ -251,7 +289,7 @@ func TestGooglePKCEStateSingleUse(t *testing.T) {
 		}
 		return reply(`{"emailAddress":"tester@example.com"}`), nil
 	})}
-	target, e := s.BeginGoogle(Credential{ClientID: "test.apps.googleusercontent.com", ClientSecret: "test-secret"}, []string{"a"}, "http://127.0.0.1:8080/oauth/google/callback")
+	target, e := s.BeginGoogle(Credential{ClientID: "test.apps.googleusercontent.com", ClientSecret: "test-secret"}, "http://127.0.0.1:8080/oauth/google/callback")
 	if e != nil {
 		t.Fatal(e)
 	}

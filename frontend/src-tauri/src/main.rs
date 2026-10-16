@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod backend;
+mod attachments;
 mod company;
 mod models;
 mod template_links;
@@ -136,6 +137,7 @@ fn main() {
             open_data_directory,
             open_external,
             company::open_company_login,
+            attachments::export_attachment,
             export_markdown
         ])
         .setup(|app| {

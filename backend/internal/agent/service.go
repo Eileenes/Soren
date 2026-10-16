@@ -76,18 +76,23 @@ type Step struct {
 	Output       string `json:"output"`
 }
 type Run struct {
-	SharedRevision string    `json:"-"`
-	ID             string    `gorm:"primaryKey;size:36" json:"id"`
-	RequestID      string    `gorm:"uniqueIndex" json:"requestId"`
-	OwnerBotID     string    `gorm:"index" json:"ownerBotId"`
-	Goal           string    `json:"goal"`
-	Status         string    `gorm:"index" json:"status"`
-	Steps          []Step    `gorm:"serializer:json;type:text" json:"steps"`
-	Result         string    `gorm:"type:text" json:"result"`
-	Error          string    `json:"error"`
-	Demo           bool      `json:"demo"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	ConversationID string        `gorm:"index" json:"conversationId,omitempty"`
+	MessageID      string        `json:"messageId,omitempty"`
+	GroupID        string        `json:"groupId,omitempty"`
+	ChatPrompt     []llm.Message `gorm:"serializer:json;type:text" json:"-"`
+	ChatOptions    *llm.Options  `gorm:"serializer:json;type:text" json:"-"`
+	SharedRevision string        `json:"-"`
+	ID             string        `gorm:"primaryKey;size:36" json:"id"`
+	RequestID      string        `gorm:"uniqueIndex" json:"requestId"`
+	OwnerBotID     string        `gorm:"index" json:"ownerBotId"`
+	Goal           string        `json:"goal"`
+	Status         string        `gorm:"index" json:"status"`
+	Steps          []Step        `gorm:"serializer:json;type:text" json:"steps"`
+	Result         string        `gorm:"type:text" json:"result"`
+	Error          string        `json:"error"`
+	Demo           bool          `json:"demo"`
+	CreatedAt      time.Time     `json:"createdAt"`
+	UpdatedAt      time.Time     `json:"updatedAt"`
 }
 type Service struct {
 	Tools         *connectors.Service
@@ -103,7 +108,7 @@ type Service struct {
 
 func New(db *gorm.DB, p llm.Provider, m *memory.MemoryManager, model string, demo bool) (*Service, error) {
 	s := &Service{DB: db, Provider: p, Memory: m, DefaultModel: model, Demo: demo, cancellations: make(map[string]context.CancelFunc), slots: make(chan struct{}, 3)}
-	if err := db.AutoMigrate(&Bot{}, &BotVersion{}, &SharedNote{}, &Run{}); err != nil {
+	if err := db.AutoMigrate(&Bot{}, &BotVersion{}, &SharedNote{}, &Run{}, &ChatCancellation{}); err != nil {
 		return nil, err
 	}
 	var n int64
@@ -307,6 +312,11 @@ func (s *Service) launch(id string) {
 	go s.execute(ctx, id)
 }
 func (s *Service) permissions(r *Run) error {
+	if r.ConversationID != "" {
+		if err := s.chatPermissions(r); err != nil {
+			return err
+		}
+	}
 	ids := []string{}
 	for _, step := range r.Steps {
 		ids = append(ids, step.BotID)
@@ -393,6 +403,13 @@ func (s *Service) execute(ctx context.Context, id string) {
 		}
 		messages := []llm.Message{{Role: "system", Content: instruction}, {Role: "user", Content: r.Goal + "\n前序成果：\n" + prior.String()}}
 		options := &llm.Options{Model: model, Temperature: .4, MaxTokens: 4000}
+		if r.ConversationID != "" {
+			messages = r.ChatPrompt
+			if r.ChatOptions != nil {
+				copy := *r.ChatOptions
+				options = &copy
+			}
+		}
 		var response *llm.Response
 		var err error
 		if s.Tools != nil && !s.Demo {
@@ -427,7 +444,7 @@ func (s *Service) execute(ctx context.Context, id string) {
 			return
 		}
 	}
-	s.DB.Model(&Run{}).Where("id = ? AND status = ?", id, "running").Updates(map[string]interface{}{"status": "succeeded", "result": r.Steps[len(r.Steps)-1].Output, "error": ""})
+	s.complete(&r)
 }
 func (s *Service) saveSteps(r *Run) bool {
 	result := s.DB.Model(&Run{}).Where("id = ? AND status = ?", r.ID, "running").Select("steps").Updates(r)

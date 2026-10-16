@@ -1,8 +1,7 @@
 package api
 
 import (
-	"github.com/soren/backend/internal/agent"
-	"github.com/soren/backend/internal/botconfig"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -10,10 +9,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/soren/backend/internal/agent"
+	"github.com/soren/backend/internal/botconfig"
 	"github.com/soren/backend/internal/llm"
 	"github.com/soren/backend/internal/memory"
 	"github.com/soren/backend/internal/models"
 	"github.com/soren/backend/internal/repository"
+	"gorm.io/gorm"
 )
 
 // ChatHandler 聊天处理器
@@ -44,6 +46,8 @@ func (h *ChatHandler) WithAgents(s *agent.Service) *ChatHandler { h.agents = s; 
 
 // ChatRequest 聊天请求
 type ChatRequest struct {
+	RequestID      string       `json:"requestId"`
+	ToolExecution  bool         `json:"toolExecution"`
 	ConversationID string       `json:"conversationId"`
 	Message        string       `json:"message"`
 	Config         *llm.Options `json:"config,omitempty"`
@@ -85,6 +89,20 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		h.defineBotResponsibilities(c, bot, req)
 		return
 	}
+	toolChat := req.ToolExecution && h.agents != nil && h.agents.Tools != nil
+	if toolChat {
+		if _, err := uuid.Parse(req.RequestID); err != nil {
+			c.JSON(400, gin.H{"error": "请求标识无效"})
+			return
+		}
+		if old, err := h.agents.ChatReplay(botID(c), req.RequestID, req.ConversationID, req.Message); err == nil {
+			c.JSON(200, ChatResponse{ConversationID: old.ConversationID.String(), Message: *old})
+			return
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(409, gin.H{"error": err.Error()})
+			return
+		}
+	}
 	memoryEnabled := h.memory != nil && h.memory.Enabled() && (bot == nil || bot.MemoryEnabled)
 	userID := resolveUserID(c)
 
@@ -121,11 +139,12 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		Role:           "user",
 		Content:        req.Message,
 	}
-	if err := h.convRepo.AddMessage(ctx, userMsg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save message"})
-		return
+	if !toolChat {
+		if err := h.convRepo.AddMessage(ctx, userMsg); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save message"})
+			return
+		}
 	}
-
 	// 召回相关记忆（失败时静默降级，不影响对话本身）
 	var recalled []*memory.Memory
 	if memoryEnabled {
@@ -141,6 +160,9 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	// 构建LLM消息历史
 	llmMessages := make([]llm.Message, 0, len(conv.Messages)+2)
 	for _, msg := range conv.Messages {
+		if msg.ToolRunID != "" && strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
 		// 历史中的 system 消息由本轮记忆重新生成，避免重复注入
 		if msg.Role == "system" {
 			continue
@@ -200,6 +222,24 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	if bot != nil && bot.Model != "" {
 		options.Model = bot.Model
 	}
+	// 组装响应中的记忆摘要
+	var used []string
+	for _, mem := range recalled {
+		text := mem.Summary
+		if text == "" {
+			text = truncateString(mem.Content, 60)
+		}
+		used = append(used, text)
+	}
+	if toolChat {
+		_, message, err := h.agents.StartChat(agent.ChatRequest{BotID: botID(c), RequestID: req.RequestID, Goal: req.Message, Conversation: conv, UserMessage: userMsg, Prompt: llmMessages, Options: options})
+		if err != nil {
+			c.JSON(409, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(202, ChatResponse{ConversationID: conv.ID.String(), Message: *message, MemoriesUsed: used})
+		return
+	}
 	// 调用LLM
 	response, err := h.llmProvider.Chat(ctx, llmMessages, options)
 	if err != nil {
@@ -230,16 +270,6 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	if memoryEnabled {
 		turn := len(conv.Messages) + 2
 		go h.memory.ProcessTurn(userID, conv.ID.String(), req.Message, response.Content, turn)
-	}
-
-	// 组装响应中的记忆摘要
-	var used []string
-	for _, mem := range recalled {
-		text := mem.Summary
-		if text == "" {
-			text = truncateString(mem.Content, 60)
-		}
-		used = append(used, text)
 	}
 
 	c.JSON(http.StatusOK, ChatResponse{
@@ -300,6 +330,12 @@ func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 	if _, err := h.convRepo.GetByIDForBot(ctx, convID, botID(c)); err != nil {
 		c.JSON(404, gin.H{"error": "conversation not found"})
 		return
+	}
+	if h.agents != nil {
+		if err := h.agents.CancelConversation(convID.String()); err != nil {
+			c.JSON(409, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	if err := h.convRepo.Delete(ctx, convID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete conversation"})

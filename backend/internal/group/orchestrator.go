@@ -95,12 +95,13 @@ func New(
 
 // SpeakRequest 群发言请求
 type SpeakRequest struct {
-	GroupID   uuid.UUID
-	Content   string
-	Mentions  []string
-	Mode      string
-	RequestID string
-	Config    *llm.Options
+	ToolExecution bool
+	GroupID       uuid.UUID
+	Content       string
+	Mentions      []string
+	Mode          string
+	RequestID     string
+	Config        *llm.Options
 }
 
 // SpeakResult 群发言响应
@@ -166,12 +167,21 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
+	if o.agents != nil {
+		var n int64
+		if err := o.agents.DB.Model(&agent.Run{}).Where("group_id = ? AND status IN ?", chat.ID.String(), []string{"queued", "running", "paused", "waiting_approval"}).Count(&n).Error; err != nil {
+			return nil, err
+		}
+		if n > 0 {
+			return nil, conflict("群聊有未完成的应用操作，请先继续或取消")
+		}
+	}
 	if strings.TrimSpace(req.Mode) == "" && isContinuation(content) {
 		latest, err := o.groups.LatestTurn(parent, chat.ID)
 		if err != nil {
 			return nil, err
 		}
-		if latest != nil && latest.Mode == ModeAuto && (latest.Status == "done" || latest.Status == "cancelled") {
+		if latest != nil && latest.Mode == ModeAuto && (latest.Status == "done" || latest.Status == "cancelled" || latest.Status == "interrupted") {
 			mode = ModeAuto
 		}
 	}
@@ -236,6 +246,8 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		return nil, serverError("保存群消息失败")
 	}
 
+	toolChat := req.ToolExecution && o.agents != nil && o.agents.Tools != nil
+	awaiting := false
 	produced := []models.Message{*userMessage}
 	spoke := map[string][]string{}
 	var failures []string
@@ -274,6 +286,42 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 				failures = append(failures, fmt.Sprintf("%s 上下文准备失败：%v", bot.Name, err))
 				continue
 			}
+			if toolChat {
+				run, message, e := o.agents.StartChat(agent.ChatRequest{BotID: bot.ID, RequestID: uuid.NewSHA1(turn.ID, []byte(fmt.Sprintf("%d:%s", round, bot.ID))).String(), Goal: content, GroupID: chat.ID.String(), Conversation: conv, Prompt: prompt, Options: o.optionsFor(bot, req.Config)})
+				if e != nil {
+					failures = append(failures, bot.Name+" 执行启动失败："+e.Error())
+					continue
+				}
+				result, updated, e := o.agents.WaitChat(ctx, run.ID)
+				if e != nil {
+					produced = append(produced, *message)
+					cancelled = true
+					break
+				}
+				if result.Status == "succeeded" && strings.TrimSpace(result.Result) == skipToken {
+					// Keep tool evidence if the Bot did execute an operation.
+					var calls int64
+					if e := o.agents.DB.Table("invocations").Where("run_id = ?", run.ID).Count(&calls).Error; e == nil && calls == 0 {
+						if e := o.agents.DB.Delete(&models.Message{}, "id = ?", updated.ID).Error; e == nil {
+							continue
+						}
+					}
+				}
+				produced = append(produced, *updated)
+				if result.Status == "waiting_approval" || result.Status == "paused" {
+					awaiting = true
+					break
+				}
+				if result.Status != "succeeded" {
+					failures = append(failures, bot.Name+"："+result.Error)
+					continue
+				}
+				if strings.TrimSpace(result.Result) != skipToken {
+					spoke[bot.ID] = append(spoke[bot.ID], result.Result)
+					spokeThisRound++
+				}
+				continue
+			}
 			response, err := o.provider.Chat(ctx, prompt, o.optionsFor(bot, req.Config))
 			if err != nil {
 				// 单个 Bot 失败不中断整场讨论
@@ -306,7 +354,7 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 				break
 			}
 		}
-		if cancelled {
+		if cancelled || awaiting {
 			break
 		}
 		completedRounds = round
@@ -325,10 +373,17 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 		} else {
 			produced = append(produced, *notice)
 		}
-	} else if len(spoke) == 0 && len(failures) > 0 {
+	} else if !awaiting && len(spoke) == 0 && len(failures) > 0 {
 		status = "failed"
 	}
 
+	if awaiting {
+		status = "interrupted"
+		notice := &models.Message{ConversationID: conv.ID, Role: "system", Content: "讨论已暂停：请在上方完成或取消应用操作，再发送消息继续讨论。"}
+		if err := o.groups.AddMessage(book, notice, chat.ID); err == nil {
+			produced = append(produced, *notice)
+		}
+	}
 	if mode == ModeAuto && status == "done" {
 		notice := &models.Message{ConversationID: conv.ID, Role: "system", Content: fmt.Sprintf("本次讨论已结束（%d 轮）。要继续讨论吗？你确认后，我们再继续，最多三轮。", completedRounds)}
 		if err := o.groups.AddMessage(book, notice, chat.ID); err != nil {
@@ -340,7 +395,9 @@ func (o *Orchestrator) Speak(parent context.Context, req SpeakRequest) (*SpeakRe
 
 	// 记忆统一延后到发言结束：自主模式最多 15 次调用，逐条提取会拖慢响应，
 	// 且 SQLite 单连接下争抢明显。
-	o.flushMemories(spoke, conv.ID.String(), content, base+2)
+	if !toolChat {
+		o.flushMemories(spoke, conv.ID.String(), content, base+2)
+	}
 
 	ids := messageIDs(produced)
 	failure := strings.Join(failures, "；")
@@ -398,6 +455,13 @@ func (o *Orchestrator) Delete(ctx context.Context, groupID uuid.UUID, timeout ti
 			return ctx.Err()
 		case <-timer.C:
 			return conflict("讨论尚未停止，请稍后重试删除")
+		}
+	}
+	if conv, err := o.conversationFor(ctx, groupID); err != nil {
+		return err
+	} else if conv != nil && o.agents != nil {
+		if err := o.agents.CancelConversation(conv.ID.String()); err != nil {
+			return err
 		}
 	}
 	if err := o.groups.ClearDependents(ctx, groupID); err != nil {
@@ -495,6 +559,9 @@ func (o *Orchestrator) buildMessages(
 		return nil, err
 	}
 	for _, message := range history {
+		if message.ToolRunID != "" && strings.TrimSpace(message.Content) == "" {
+			continue
+		}
 		// 中止、重启一类说明不是发言内容，注入模型只会干扰
 		if message.Role == "system" {
 			continue
@@ -687,5 +754,8 @@ func requestFingerprint(req SpeakRequest) string {
 		Mentions []string
 		Options  llm.Options
 	}{mentions, options})
+	if req.ToolExecution {
+		encoded = append(encoded, []byte(":tools")...)
+	}
 	return fmt.Sprintf("%x", sha256.Sum256(encoded))
 }

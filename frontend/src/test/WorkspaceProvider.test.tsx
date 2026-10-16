@@ -21,6 +21,7 @@ function Content() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  localStorage.clear();
   setApiBaseUrl(DEFAULT_API_BASE_URL);
   vi.mocked(companyAPI.status).mockResolvedValue({ mode: 'personal' });
   vi.mocked(companyAPI.discover).mockResolvedValue({ product: 'soren', protocolVersion: 1, auth: 'oauth-browser', name: '测试公司', serverUrl: connection.serverUrl });
@@ -159,5 +160,132 @@ describe('个人与公司空间', () => {
     fireEvent.click(screen.getByRole('button', { name: '刷新空间' }));
     await waitFor(() => expect(screen.getByLabelText('聊天草稿')).toHaveValue(''));
     expect(http.defaults.headers.common['X-Soren-Workspace']).toBe('https://company.example:bob-space:bob');
+  });
+});
+
+function WelcomeContent() {
+  const { status } = useWorkspace();
+  return <p>已进入：{status.mode}</p>;
+}
+describe('首次启动空间选择', () => {
+  it('默认公司空间，未填写地址不能确认，不能关闭后绕过选择', async () => {
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog', { name: '欢迎使用 Soren' });
+    expect(screen.getByRole('radio', { name: '公司空间' })).toBeChecked();
+    expect(screen.getByRole('button', { name: '确认' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '关闭' })).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByText('已进入：personal')).not.toBeInTheDocument();
+  });
+  it('个人空间不需要地址或登录，确认后直接进入并记住选择', async () => {
+    const view = render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('radio', { name: '个人空间' }));
+    expect(screen.queryByLabelText('公司服务器地址')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    expect(screen.getByText('已进入：personal')).toBeInTheDocument();
+    expect(companyAPI.discover).not.toHaveBeenCalled();
+    expect(companyAPI.login).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('soren.getting-started.v1')!).seen).toBe(true);
+    view.unmount();
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByText('已进入：personal');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('确认地址后自动发起登录，授权成功自动进入公司空间', async () => {
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.change(screen.getByLabelText('公司服务器地址'), { target: { value: '  https://company.example  ' } });
+    vi.useFakeTimers();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '确认' })); });
+    expect(companyAPI.discover).toHaveBeenCalledWith('https://company.example');
+    expect(openCompanyLogin).toHaveBeenCalledWith(login);
+    expect(screen.queryByText('已进入：enterprise')).not.toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(companyAPI.complete).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('已进入：enterprise')).toBeInTheDocument();
+    expect(companyAPI.cancel).not.toHaveBeenCalled();
+    expect(localStorage.getItem('soren.workspace-confirmed.v2')).toBe('true');
+  });
+  it('识别失败保留弹窗，可以改选个人空间', async () => {
+    vi.mocked(companyAPI.discover).mockRejectedValue(new Error('无法连接服务器'));
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.change(screen.getByLabelText('公司服务器地址'), { target: { value: 'https://wrong.example' } });
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    await screen.findByText('无法连接服务器');
+    expect(companyAPI.login).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('radio', { name: '个人空间' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    expect(screen.getByText('已进入：personal')).toBeInTheDocument();
+  });
+  it('旧公司会话及旧版自动标记不能跳过选择，确认后才进入', async () => {
+    localStorage.setItem('soren.workspace-selected.v1', 'true');
+    vi.mocked(companyAPI.status).mockResolvedValue(company);
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    expect(screen.queryByText('已进入：enterprise')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('公司服务器地址')).toHaveValue(connection.serverUrl);
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    await screen.findByText('已进入：enterprise');
+    expect(companyAPI.login).not.toHaveBeenCalled();
+    expect(localStorage.getItem('soren.workspace-confirmed.v2')).toBe('true');
+  });
+  it('取消等待中的登录后可选择个人空间，不激活公司会话', async () => {
+    vi.mocked(companyAPI.poll).mockResolvedValue({ status: 'pending' });
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.change(screen.getByLabelText('公司服务器地址'), { target: { value: connection.serverUrl } });
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    await screen.findByRole('button', { name: '取消登录' });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '取消登录' })); });
+    fireEvent.click(screen.getByRole('radio', { name: '个人空间' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    expect(screen.getByText('已进入：personal')).toBeInTheDocument();
+    expect(companyAPI.cancel).toHaveBeenCalledWith(login.id);
+    expect(companyAPI.complete).not.toHaveBeenCalled();
+  });
+});
+
+describe('旧连接升级后的空间选择', () => {
+  it('个人模式残留公司地址仍展示选择，选择个人不需要退出公司', async () => {
+    vi.mocked(companyAPI.status).mockResolvedValue({ mode: 'personal', connection });
+    localStorage.setItem('soren.workspace-selected.v1', 'true');
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('radio', { name: '个人空间' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    await screen.findByText('已进入：personal');
+    expect(companyAPI.disconnect).not.toHaveBeenCalled();
+  });
+  it.each([
+    company,
+    { ...company, needsLogin: true },
+    { ...company, error: '公司服务暂不可用' },
+  ])('旧公司状态 %j 可通过首次弹窗切回个人', async status => {
+    vi.mocked(companyAPI.status).mockResolvedValue(status);
+    let finish!: (result: { revoked: boolean; credentialDeleted: boolean }) => void;
+    vi.mocked(companyAPI.disconnect).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('radio', { name: '个人空间' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    expect(companyAPI.disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('已进入：personal')).not.toBeInTheDocument();
+    expect(localStorage.getItem('soren.workspace-confirmed.v2')).toBeNull();
+    await act(async () => finish({ revoked: true, credentialDeleted: true }));
+    await screen.findByText('已进入：personal');
+    expect(getApiBaseUrl()).toBe(DEFAULT_API_BASE_URL);
+  });
+  it('切回个人失败时不记录完成、不进入业务界面', async () => {
+    vi.mocked(companyAPI.status).mockResolvedValue(company);
+    vi.mocked(companyAPI.disconnect).mockRejectedValue(new Error('无法保存空间设置'));
+    render(<WorkspaceProvider welcome><WelcomeContent /></WorkspaceProvider>);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('radio', { name: '个人空间' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认' }));
+    await screen.findByText('无法保存空间设置');
+    expect(screen.queryByText('已进入：enterprise')).not.toBeInTheDocument();
+    expect(localStorage.getItem('soren.workspace-confirmed.v2')).toBeNull();
   });
 });

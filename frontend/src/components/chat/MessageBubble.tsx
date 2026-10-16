@@ -13,6 +13,7 @@ import { IconAlert, IconBrain, IconCheck, IconCopy, IconRefresh } from '../icons
 import { avatarURL, type Bot } from '../../services/agents';
 import { TypingDots } from '../ui/Button';
 import { Tooltip } from '../ui';
+import { ChatToolExecution } from './ChatToolExecution';
 import { MarkdownView } from './MarkdownView';
 import { findMentionHits } from '../../hooks/useGroupChat';
 import type { ChatMessage } from '../../hooks/useChat';
@@ -123,7 +124,7 @@ export function MessageBubble({
   };
 
   // 等待中且无内容：显示思考动画
-  const showThinking = isAssistant && pending && message.content === '';
+  const showThinking = isAssistant && pending && message.content === '' && !message.toolRunId;
 
   /* ── 用户消息 ─────────────────────────────────────────── */
   if (isUser) {
@@ -214,7 +215,7 @@ export function MessageBubble({
         )}
 
         <div className="bubble-assistant">
-          {showThinking ? (
+          {message.toolRunId ? <ChatToolExecution key={message.toolRunId} runId={message.toolRunId} botId={message.speakerBotId || bot?.id || 'soren'} initialContent={message.content} /> : showThinking ? (
             <div className="flex items-center gap-2 py-0.5 text-ink-2">
               <TypingDots />
               <span className="text-xs text-ink-3">{speakerLabel} 正在思考…</span>
@@ -235,7 +236,7 @@ export function MessageBubble({
         </div>
 
         {/* 操作栏：默认隐藏，悬浮或聚焦时显示 */}
-        {!showThinking && (
+        {!showThinking && !message.toolRunId && (
           <div
             className={cn(
               'flex items-center gap-0.5 pl-1',

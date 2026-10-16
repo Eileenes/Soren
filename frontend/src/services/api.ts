@@ -213,6 +213,8 @@ export const chatAPI = {
   async sendMessage(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
     const { data } = await http.post<ChatResponse>('/api/chat', {
       conversationId: request.conversationId,
+      requestId: request.requestId,
+      toolExecution: true,
       message: request.message,
       config: toBackendOptions(request.config),
     }, { signal });

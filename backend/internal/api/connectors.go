@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -17,18 +18,6 @@ import (
 
 func RegisterConnectors(g *gin.RouterGroup, s *connectors.Service, callbackURL string) {
 	fail := func(c *gin.Context, e error) { c.JSON(400, gin.H{"error": e.Error()}) }
-	validateBots := func(ids []string) error {
-		if len(ids) > 100 {
-			return errors.New("Bot 数量过多")
-		}
-		for _, id := range ids {
-			var n int64
-			if s.DB.Table("bots").Where("id = ?", id).Count(&n).Error != nil || n != 1 {
-				return errors.New("Bot 不存在")
-			}
-		}
-		return nil
-	}
 	g.GET("/connections", func(c *gin.Context) {
 		rows := []connectors.Connection{}
 		if e := s.DB.Order("created_at ASC").Find(&rows).Error; e != nil {
@@ -39,26 +28,18 @@ func RegisterConnectors(g *gin.RouterGroup, s *connectors.Service, callbackURL s
 	})
 	g.POST("/connections", func(c *gin.Context) {
 		var input struct {
-			Kind        string   `json:"kind"`
-			Name        string   `json:"name"`
-			Endpoint    string   `json:"endpoint"`
-			Token       string   `json:"token"`
-			AllowedBots []string `json:"allowedBots"`
+			Kind     string `json:"kind"`
+			Name     string `json:"name"`
+			Endpoint string `json:"endpoint"`
+			Token    string `json:"token"`
 		}
 		if c.ShouldBindJSON(&input) != nil || len(input.Name) > 100 || len(input.Token) > 16000 {
 			fail(c, errors.New("连接配置无效"))
 			return
 		}
-		if e := validateBots(input.AllowedBots); e != nil {
-			fail(c, e)
-			return
-		}
-		row := connectors.Connection{ID: uuid.NewString(), Kind: input.Kind, Name: strings.TrimSpace(input.Name), Endpoint: strings.TrimSpace(input.Endpoint), AllowedBots: input.AllowedBots, Enabled: true, Version: 1, Tools: []connectors.RemoteTool{}}
+		row := connectors.Connection{ID: uuid.NewString(), Kind: input.Kind, Name: strings.TrimSpace(input.Name), Endpoint: strings.TrimSpace(input.Endpoint), AllowedBots: []string{}, Enabled: true, Version: 1, Tools: []connectors.RemoteTool{}}
 		if row.Name == "" {
 			row.Name = input.Kind
-		}
-		if row.AllowedBots == nil {
-			row.AllowedBots = []string{}
 		}
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 50*time.Second)
 		defer cancel()
@@ -131,23 +112,15 @@ func RegisterConnectors(g *gin.RouterGroup, s *connectors.Service, callbackURL s
 	})
 	g.PUT("/connections/:id", func(c *gin.Context) {
 		var input struct {
-			AllowedBots []string `json:"allowedBots"`
-			Enabled     bool     `json:"enabled"`
-			Version     int      `json:"version"`
+			Enabled bool `json:"enabled"`
+			Version int  `json:"version"`
 		}
 		if c.ShouldBindJSON(&input) != nil {
 			fail(c, errors.New("参数无效"))
 			return
 		}
-		if e := validateBots(input.AllowedBots); e != nil {
-			fail(c, e)
-			return
-		}
-		if input.AllowedBots == nil {
-			input.AllowedBots = []string{}
-		}
-		// GORM's JSON serializer must be applied through a typed model, not a slice map value.
-		row := connectors.Connection{AllowedBots: input.AllowedBots, Enabled: input.Enabled, Version: input.Version + 1}
+		// Clear obsolete Bot selections when saving. Enabled/version govern the whole workspace.
+		row := connectors.Connection{AllowedBots: []string{}, Enabled: input.Enabled, Version: input.Version + 1}
 		res := s.DB.Model(&row).Where("id = ? AND version = ?", c.Param("id"), input.Version).Select("allowed_bots", "enabled", "version").Updates(&row)
 		if res.Error != nil {
 			fail(c, res.Error)
@@ -177,19 +150,14 @@ func RegisterConnectors(g *gin.RouterGroup, s *connectors.Service, callbackURL s
 	})
 	g.POST("/connections/gmail/authorize", func(c *gin.Context) {
 		var input struct {
-			ClientID     string   `json:"clientId"`
-			ClientSecret string   `json:"clientSecret"`
-			AllowedBots  []string `json:"allowedBots"`
+			ClientID     string `json:"clientId"`
+			ClientSecret string `json:"clientSecret"`
 		}
 		if c.ShouldBindJSON(&input) != nil {
 			fail(c, errors.New("参数无效"))
 			return
 		}
-		if e := validateBots(input.AllowedBots); e != nil {
-			fail(c, e)
-			return
-		}
-		target, e := s.BeginGoogle(connectors.Credential{ClientID: input.ClientID, ClientSecret: input.ClientSecret}, input.AllowedBots, callbackURL)
+		target, e := s.BeginGoogle(connectors.Credential{ClientID: input.ClientID, ClientSecret: input.ClientSecret}, callbackURL)
 		if e != nil {
 			fail(c, e)
 			return
@@ -262,6 +230,31 @@ func RegisterConnectors(g *gin.RouterGroup, s *connectors.Service, callbackURL s
 			return
 		}
 		c.JSON(200, rows)
+	})
+	g.GET("/runs/:id/files", func(c *gin.Context) {
+		if !ownRun(c) {
+			return
+		}
+		rows := []connectors.FileArtifact{}
+		if err := s.DB.Where("run_id = ?", c.Param("id")).Order("created_at ASC").Find(&rows).Error; err != nil {
+			fail(c, err)
+			return
+		}
+		c.JSON(200, rows)
+	})
+	g.GET("/runs/:id/files/:file", func(c *gin.Context) {
+		if !ownRun(c) {
+			return
+		}
+		meta, file, err := s.OpenFile(c.Param("id"), c.Param("file"))
+		if err != nil {
+			c.JSON(404, gin.H{"error": "成果文件不存在"})
+			return
+		}
+		defer file.Close()
+		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": meta.Name}))
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.DataFromReader(200, meta.Size, "application/octet-stream", file, nil)
 	})
 	g.POST("/tool-invocations/:id/decision", func(c *gin.Context) {
 		var input struct {

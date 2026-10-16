@@ -26,6 +26,7 @@ export interface ModalProps {
   size?: 'sm' | 'md' | 'lg';
   /** 是否允许点击遮罩关闭，默认允许 */
   closeOnBackdrop?: boolean;
+  dismissible?: boolean;
 }
 
 const MODAL_WIDTH: Record<NonNullable<ModalProps['size']>, string> = {
@@ -46,6 +47,7 @@ export function Modal({
   footer,
   size = 'md',
   closeOnBackdrop = true,
+  dismissible = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -64,7 +66,7 @@ export function Modal({
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && dismissible) {
         event.stopPropagation();
         onClose();
         return;
@@ -91,7 +93,7 @@ export function Modal({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, dismissible]);
 
   // 打开后把焦点移入对话框
   useEffect(() => {
@@ -115,7 +117,7 @@ export function Modal({
       {/* 遮罩 */}
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm animate-fade-in"
-        onClick={closeOnBackdrop ? onClose : undefined}
+        onClick={dismissible && closeOnBackdrop ? onClose : undefined}
         aria-hidden="true"
       />
 
@@ -146,9 +148,9 @@ export function Modal({
                 <p className="mt-1 text-xs leading-5 text-ink-2">{description}</p>
               )}
             </div>
-            <IconButton label="关闭" onClick={onClose} size="sm">
+            {dismissible && <IconButton label="关闭" onClick={onClose} size="sm">
               <IconClose size={16} />
-            </IconButton>
+            </IconButton>}
           </div>
         )}
 

@@ -14,6 +14,8 @@ services:
       retries: 20
     restart: unless-stopped
   enterprise:
+    # Docker 命名卷继承镜像内 /data 属主，无需启动时提权，保留全 capabilities 禁用。
+    user: "10001:10001"
     build:
       context: ../..
       dockerfile: deploy/enterprise/Dockerfile

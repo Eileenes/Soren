@@ -22,11 +22,12 @@ var ErrDenied = errors.New("用户拒绝操作，任务已停止")
 var ErrUncertain = errors.New("外部操作结果待核实，任务已停止；不会自动重试")
 
 type Service struct {
-	PolicyLock sync.RWMutex
-	Policy     func(bot, run, action string) (bool, string, error)
-	DB         *gorm.DB
-	Vault      Vault
-	HTTP       *http.Client
+	PolicyLock   sync.RWMutex
+	Policy       func(bot, run, action string) (bool, string, error)
+	DB           *gorm.DB
+	Vault        Vault
+	HTTP         *http.Client
+	MCPTransport http.RoundTripper // Injectable only for in-process connector tests.
 	// Downloads from public signed URLs never carry connector credentials.
 	DownloadHTTP         *http.Client
 	DataDir              string
@@ -50,14 +51,6 @@ func New(db *gorm.DB, v Vault, dir string) (*Service, error) {
 		GoogleAPI:    "https://gmail.googleapis.com/gmail/v1", NotionAPI: "https://api.notion.com/v1",
 		pending: map[string]*oauthAttempt{},
 	}, nil
-}
-func has(items []string, id string) bool {
-	for _, x := range items {
-		if x == id {
-			return true
-		}
-	}
-	return false
 }
 
 type binding struct {
@@ -92,10 +85,8 @@ func (s *Service) catalog(bot string) (map[string]binding, error) {
 	if e := s.DB.Where("enabled = ?", true).Order("created_at ASC").Find(&connections).Error; e != nil {
 		return nil, e
 	}
+	// DB is scoped to the current user workspace. Every active Bot shares its enabled connections.
 	for _, c := range connections {
-		if !has(c.AllowedBots, bot) {
-			continue
-		}
 		prefix := "c_" + strings.ReplaceAll(c.ID, "-", "") + "_"
 		add := func(action, desc string, props map[string]any, approval bool, required ...string) {
 			t := tool(prefix+action, c.Name+" ("+c.Account+"): "+desc, props, required...)
@@ -120,7 +111,7 @@ func (s *Service) catalog(bot string) (map[string]binding, error) {
 		}
 	}
 	if len(out) > 64 {
-		return nil, errors.New("当前 Bot 的工具超过 64 个，请减少分配的连接")
+		return nil, errors.New("当前 Bot 的工具超过 64 个，请停用不需要的连接")
 	}
 	return out, nil
 }
@@ -174,9 +165,13 @@ func (s *Service) Loop(ctx context.Context, p llm.Provider, bot, run string, ste
 				}
 			}
 		}
-		// Locate the last assistant turn and finish any unrecorded tool results.
+		// Only replay assistant responses checkpointed by this run/step. Before
+		// its first model round, all assistant messages are conversation history:
+		// returning them would skip the new request, and executing their calls
+		// could repeat an operation from an earlier run. Rounds is persisted with
+		// messages, so approval/restart recovery still replays the current round.
 		last := -1
-		for i := len(messages) - 1; i >= 0; i-- {
+		for i := len(messages) - 1; transcript.Rounds > 0 && i >= 0; i-- {
 			if messages[i].Role == "assistant" {
 				last = i
 				break
@@ -322,7 +317,7 @@ func (s *Service) invoke(ctx context.Context, catalog map[string]binding, bot, r
 	}
 	if b.Connection.ID != "" {
 		var current Connection
-		if s.DB.First(&current, "id = ?", b.Connection.ID).Error != nil || !current.Enabled || current.Version != inv.ConnectionVersion || !has(current.AllowedBots, bot) {
+		if s.DB.First(&current, "id = ?", b.Connection.ID).Error != nil || !current.Enabled || current.Version != inv.ConnectionVersion {
 			return "", errors.New("连接或授权已变更，请重新发起任务")
 		}
 	}
@@ -342,6 +337,9 @@ func (s *Service) invoke(ctx context.Context, catalog map[string]binding, bot, r
 		return "", errors.New("操作已被处理")
 	}
 	output, e := s.execute(ctx, b, bot, run, []byte(call.Function.Arguments))
+	if _, builtin := KindSpec(b.Connection.Kind); e == nil && builtin {
+		output, e = s.captureFiles(bot, run, output)
+	}
 	status := "succeeded"
 	if e != nil {
 		status = "unknown"

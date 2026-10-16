@@ -3,6 +3,7 @@ package enterpriseclient
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -263,5 +264,51 @@ func TestDiscoveryRejectsRedirectsAndMismatchedOrigins(t *testing.T) {
 	defer mismatch.Close()
 	if _, err = client.discover(t.Context(), mismatch.URL); err == nil {
 		t.Fatal("accepted changed server origin")
+	}
+}
+
+func TestAttachmentBridgeStreamsOnlyScopedFileEndpoints(t *testing.T) {
+	data := strings.Repeat("x", (4<<20)+1)
+	filePath := "/api/runs/11111111-1111-4111-8111-111111111111/files/22222222-2222-4222-8222-222222222222"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-token" || r.Header.Get("X-Bot-ID") != "soren" {
+			t.Error("lost identity scope")
+		}
+		w.Header().Set("Content-Length", fmt.Sprint(len(data)))
+		w.Header().Set("Content-Disposition", `attachment; filename="song.mp3"`)
+		w.Write([]byte(data))
+	}))
+	defer upstream.Close()
+	db, e := store.OpenDB(&config.Config{StorageDriver: "sqlite", SQLitePath: filepath.Join(t.TempDir(), "bridge.db")})
+	if e != nil {
+		t.Fatal(e)
+	}
+	v := &connectors.MemoryVault{}
+	c, e := New(db, v, true)
+	if e != nil {
+		t.Fatal(e)
+	}
+	row := Record{ID: 1, Active: true, ServerURL: upstream.URL, WorkspaceID: "alice", UserID: "alice"}
+	db.Save(&row)
+	v.Set(vaultID, connectors.Credential{APIKey: "test-token", ClientID: row.binding()})
+	r := gin.New()
+	c.Register(r)
+	call := func(path, scope string) *httptest.ResponseRecorder {
+		q := httptest.NewRequest("GET", "/enterprise"+path, nil)
+		q.Header.Set("X-Bot-ID", "soren")
+		q.Header.Set("X-Soren-Workspace", scope)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, q)
+		return w
+	}
+	w := call(filePath, row.binding())
+	if w.Code != 200 || w.Body.String() != data || !strings.Contains(w.Header().Get("Content-Disposition"), "song.mp3") {
+		t.Fatal("binary attachment not streamed")
+	}
+	if w = call(filePath, "bob"); w.Code != 409 {
+		t.Fatal("wrong workspace accepted")
+	}
+	if w = call("/api/bots", row.binding()); w.Code != 502 {
+		t.Fatal("binary accepted outside file endpoint")
 	}
 }

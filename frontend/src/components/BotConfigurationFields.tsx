@@ -175,8 +175,7 @@ export function BotPermissionFields({
       ) : (
         <>
           <p className="text-xs leading-6 text-ink-3">
-            只有已连接并分配给此 Bot
-            的工具才能执行。「允许」仍保留应用固定的审批要求；新增动作默认禁用。
+            当前空间已启用的应用工具可供所有 Bot 使用。「允许」仍保留应用固定的审批要求；新增动作默认禁用。
           </p>
           {keys.map((key) => (
             <SelectField
@@ -184,7 +183,7 @@ export function BotPermissionFields({
               label={actionLabel(key)}
               helper={
                 actions.find((a) => a.key === key)?.name ||
-                "待连接：在应用连接中分配工具后可用"
+                "待连接：在当前空间连接应用后可用"
               }
               value={bot.policy?.actions[key] || "deny"}
               disabled={disabled}

@@ -19,6 +19,7 @@ export type MessageRole = 'user' | 'assistant' | 'system';
  * 因此这里保留 string 类型，不假装是 Date。
  */
 export interface Message {
+  toolRunId?: string;
   id: string;
   conversationId: string;
   role: MessageRole;
@@ -56,6 +57,7 @@ export interface LLMOptions {
 
 /** POST /api/chat 请求体 */
 export interface ChatRequest {
+  requestId?: string;
   conversationId?: string;
   message: string;
   config?: LLMOptions;

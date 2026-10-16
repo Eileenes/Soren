@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatAPI, describeError, normalizeError } from '../services/api';
+import { getActiveBotID } from '../services/botScope';
+import { connectionRequest } from '../services/connections';
 import { getSettings } from '../services/settingsStore';
 import type { Message } from '../types';
 
@@ -27,6 +29,7 @@ export function useChat({ onConversationCreated }: UseChatOptions = {}): UseChat
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const busy = useRef(false);
+  const retry = useRef<{ content: string; conversationId: string | null; id: string; botId: string }>();
   const cancel = useCallback(() => { generation.current += 1; controller.current?.abort(); controller.current = null; busy.current = false; }, []);
   useEffect(() => () => cancel(), [cancel]);
 
@@ -42,14 +45,17 @@ export function useChat({ onConversationCreated }: UseChatOptions = {}): UseChat
     const userId = newId('user'); const pendingId = newId('assistant');
     const timestamp = new Date().toISOString();
     const common = { conversationId: conversationId ?? '', timestamp, createdAt: timestamp, updatedAt: timestamp };
-    setMessages(previous => [...previous,
+    const retrying = retry.current?.content === content && retry.current?.conversationId === conversationId && retry.current?.botId === getActiveBotID();
+    setMessages(previous => [...(retrying ? previous.filter(item => !(item.role === 'user' && item.status === 'failed' && item.content === content)) : previous),
       { ...common, id: userId, role: 'user', content, status: 'sent' },
       { ...common, id: pendingId, role: 'assistant', content: '', status: 'sending' },
     ]);
     try {
       const settings = getSettings().llm;
-      const response = await chatAPI.sendMessage({ conversationId: conversationId ?? undefined, message: content, config: { model: settings.model || undefined, temperature: settings.temperature, max_tokens: settings.maxTokens } }, request.signal);
+      if (!retrying || !retry.current) retry.current = { content, conversationId, id: crypto.randomUUID(), botId: getActiveBotID() };
+      const response = await chatAPI.sendMessage({ requestId: retry.current.id, conversationId: conversationId ?? undefined, message: content, config: { model: settings.model || undefined, temperature: settings.temperature, max_tokens: settings.maxTokens } }, request.signal);
       if (request.signal.aborted || generation.current !== version) return;
+      retry.current = undefined;
       setConversationId(response.conversationId); setOffline(false);
       setMessages(previous => previous.map(item => item.id === pendingId ? toChatMessage(response.message, { memoriesUsed: response.memoriesUsed }) : item));
       if (!conversationId) onConversationCreated?.(response.conversationId, content);
@@ -63,12 +69,15 @@ export function useChat({ onConversationCreated }: UseChatOptions = {}): UseChat
   }, [cancel, conversationId, onConversationCreated]);
 
   const stop = useCallback(() => {
+    const pending = retry.current;
+    if (busy.current && pending) void connectionRequest('POST', `/chat/requests/${pending.id}/cancel`, {}, pending.botId).catch(e => setError(describeError(e)));
+    retry.current = undefined;
     cancel(); setLoading(false); setLoadingHistory(false);
     setMessages(previous => previous.filter(item => item.status !== 'sending'));
   }, [cancel]);
-  const reset = useCallback(() => { cancel(); setMessages([]); setConversationId(null); setLoading(false); setLoadingHistory(false); setError(null); }, [cancel]);
+  const reset = useCallback(() => { retry.current = undefined; cancel(); setMessages([]); setConversationId(null); setLoading(false); setLoadingHistory(false); setError(null); }, [cancel]);
   const loadConversation = useCallback(async (id: string) => {
-    cancel(); const request = new AbortController(); controller.current = request;
+    retry.current = undefined; cancel(); const request = new AbortController(); controller.current = request;
     const version = generation.current; busy.current = true;
     setLoading(false); setLoadingHistory(true); setError(null); setMessages([]); setConversationId(id);
     try {

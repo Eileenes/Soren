@@ -72,7 +72,7 @@ export const groupsAPI = {
   ): Promise<SpeakResult> {
     const { data } = await http.post<SpeakResult>(
       `/api/groups/${id}/messages`,
-      { ...input, config: toBackendOptions(input.config) },
+      { ...input, toolExecution: true, config: toBackendOptions(input.config) },
       { signal, timeout: 10 * 60 * 1000 },
     );
     return data;
