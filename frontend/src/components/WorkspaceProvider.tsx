@@ -3,6 +3,7 @@ import { DEFAULT_API_BASE_URL, setApiBaseUrl } from '../services/api';
 import { setActiveBotID } from '../services/botScope';
 import { companyAPI, type WorkspaceStatus } from '../services/company';
 import { CompanyPanel } from './CompanyPanel';
+import { WorkspaceWelcome } from './WorkspaceWelcome';
 import { Button } from './ui';
 
 type WorkspaceContextValue = {
@@ -17,7 +18,7 @@ export const useWorkspace = () => useContext(WorkspaceContext);
 const workspaceScope = (status: WorkspaceStatus) => status.mode === 'enterprise'
   ? `${status.connection?.serverUrl}:${status.connection?.workspaceId}:${status.connection?.userId}` : 'personal';
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
+export function WorkspaceProvider({ children, welcome = false }: { children: ReactNode; welcome?: boolean }) {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [error, setError] = useState('');
   const [notice, notify] = useState('');
@@ -69,10 +70,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
   if (!status) return <main className="flex min-h-screen items-center justify-center bg-surface-1 p-8 text-ink-1"><div className="max-w-md text-center"><img src="/soren-mark.svg" alt="Soren" className="mx-auto mb-6 h-14 w-14" /><p role="status">{error || '正在恢复使用空间…'}</p>{error && <Button className="mt-5" onClick={() => void reload().catch(e => setError(String(e)))}>重新连接</Button>}</div></main>;
   const scope = workspaceScope(status);
+  const content = status.needsLogin || status.error
+    ? <main className="min-h-screen bg-surface-1 p-6 pt-20 text-ink-1"><div className="mx-auto max-w-2xl"><CompanyPanel /></div></main>
+    : <div key={scope} className="contents">{children}</div>;
   return <WorkspaceContext.Provider value={{ status, scope, reload, apply, notify }}>
     {notice && <div role="status" className="fixed bottom-6 left-1/2 z-[100] w-[min(90vw,36rem)] -translate-x-1/2 rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink-1 shadow-xl"><p>{notice}</p><Button className="mt-2" variant="ghost" size="sm" onClick={() => notify('')}>知道了</Button></div>}
-    {status.needsLogin || status.error
-      ? <main className="min-h-screen bg-surface-1 p-6 pt-20 text-ink-1"><div className="mx-auto max-w-2xl"><CompanyPanel /></div></main>
-      : <div key={scope} className="contents">{children}</div>}
+    {welcome ? <WorkspaceWelcome>{content}</WorkspaceWelcome> : content}
   </WorkspaceContext.Provider>;
 }

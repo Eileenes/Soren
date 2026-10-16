@@ -20,6 +20,7 @@ type attempt struct {
 	Started, Consumed                         bool
 	Token, Error                              string
 	User                                      User
+	Subject                                   string
 }
 
 func (s *Server) oauth() *oauth2.Config {
@@ -51,6 +52,10 @@ func (s *Server) startLogin(w http.ResponseWriter, r *http.Request) {
 	respond(w, 201, map[string]any{"id": a.ID, "pollSecret": poll, "url": s.Config.PublicURL + "/auth/browser?ticket=" + a.ID, "expiresAt": a.Expires})
 }
 func (s *Server) browserLogin(w http.ResponseWriter, r *http.Request) {
+	if s.Config.AuthMode == "ingresshub" {
+		s.browserIngressHub(w, r)
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := s.attempts[r.URL.Query().Get("ticket")]

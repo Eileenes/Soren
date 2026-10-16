@@ -20,7 +20,6 @@ type oauthAttempt struct {
 	Code, Verifier, Redirect string
 	Expires, Next            time.Time
 	Interval                 time.Duration
-	Bots                     []string
 }
 type DeviceLogin struct {
 	ID       string `json:"id"`
@@ -145,7 +144,7 @@ func (s *Service) PollGitHub(ctx context.Context, id string) (*Identity, error) 
 func googleConfig(c Credential, redirect string) *oauth2.Config {
 	return &oauth2.Config{ClientID: c.ClientID, ClientSecret: c.ClientSecret, RedirectURL: redirect, Scopes: []string{"https://www.googleapis.com/auth/gmail.compose"}, Endpoint: oauth2.Endpoint{AuthURL: "https://accounts.google.com/o/oauth2/v2/auth", TokenURL: "https://oauth2.googleapis.com/token"}}
 }
-func (s *Service) BeginGoogle(c Credential, bots []string, redirect string) (string, error) {
+func (s *Service) BeginGoogle(c Credential, redirect string) (string, error) {
 	if !strings.HasSuffix(c.ClientID, ".apps.googleusercontent.com") || len(c.ClientID) > 250 || c.ClientSecret == "" {
 		return "", errors.New("请填写 Google 桌面 OAuth 客户端的 Client ID 和 Client Secret")
 	}
@@ -157,7 +156,7 @@ func (s *Service) BeginGoogle(c Credential, bots []string, redirect string) (str
 	}
 	state := uuid.NewString()
 	verifier := oauth2.GenerateVerifier()
-	s.pending[state] = &oauthAttempt{Kind: "google", Credential: c, Verifier: verifier, Redirect: redirect, Expires: time.Now().Add(10 * time.Minute), Bots: bots}
+	s.pending[state] = &oauthAttempt{Kind: "google", Credential: c, Verifier: verifier, Redirect: redirect, Expires: time.Now().Add(10 * time.Minute)}
 	return googleConfig(c, redirect).AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier), oauth2.SetAuthURLParam("prompt", "consent")), nil
 }
 func (s *Service) CompleteGoogle(ctx context.Context, state, code string) error {
@@ -185,7 +184,7 @@ func (s *Service) CompleteGoogle(ctx context.Context, state, code string) error 
 	if json.Unmarshal([]byte(raw), &profile) != nil || profile.Email == "" {
 		return errors.New("Gmail 账号无效")
 	}
-	c := Connection{ID: uuid.NewString(), Name: "Gmail", Kind: "gmail", Account: profile.Email, Enabled: true, Version: 1, AllowedBots: p.Bots, Tools: []RemoteTool{}}
+	c := Connection{ID: uuid.NewString(), Name: "Gmail", Kind: "gmail", Account: profile.Email, Enabled: true, Version: 1, AllowedBots: []string{}, Tools: []RemoteTool{}}
 	p.Credential.Token = token
 	if e = s.Vault.Set(c.ID, p.Credential); e != nil {
 		return errors.New("系统凭据库保存失败，连接未建立")

@@ -52,11 +52,8 @@ func TestConnectionsValidateScopeHideSecretsAndDetectConflicts(t *testing.T) {
 		r.ServeHTTP(w, req)
 		return w
 	}
-	bad := request("POST", "/api/connections", `{"kind":"notion","token":"test-secret","allowedBots":["missing"]}`)
-	if bad.Code != 400 {
-		t.Fatal(bad.Code)
-	}
-	saved := request("POST", "/api/connections", `{"kind":"notion","token":"test-secret","allowedBots":["soren"]}`)
+	// Older clients may still send selections; the server ignores them.
+	saved := request("POST", "/api/connections", `{"kind":"notion","token":"test-secret","allowedBots":["missing"]}`)
 	if saved.Code != 201 {
 		t.Fatal(saved.Code, saved.Body.String())
 	}

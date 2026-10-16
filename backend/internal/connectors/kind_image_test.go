@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -53,7 +54,22 @@ func TestImageConnectorFlow(t *testing.T) {
 	if e = json.Unmarshal([]byte(out), &res); e != nil || res.Status != "completed" || len(res.Files) != 2 {
 		t.Fatal(out)
 	}
-	mustFile(t, jsonText(res.Files[1]), "PNG/public/out-2.png")
+	if _, ok := res.Files[1]["path"]; ok {
+		t.Fatal("server path exposed")
+	}
+	var attachment FileArtifact
+	if e = s.DB.First(&attachment, "id = ?", res.Files[1]["fileId"]).Error; e != nil {
+		t.Fatal(e)
+	}
+	_, file, e := s.OpenFile(attachment.RunID, attachment.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	data, e := io.ReadAll(file)
+	file.Close()
+	if e != nil || string(data) != "PNG/public/out-2.png" {
+		t.Fatal("download snapshot mismatch", e)
+	}
 	if out, e = s.executeKind(ctx, k, "get_task", "key-1", map[string]string{"task_id": "task_02"}); e != nil || strings.Contains(out, "files") {
 		t.Fatal(out, e)
 	}

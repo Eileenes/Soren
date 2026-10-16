@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const api = vi.hoisted(() => ({ send: vi.fn(), history: vi.fn() }));
+const api = vi.hoisted(() => ({ send: vi.fn(), history: vi.fn(), request: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../services/api', () => ({ chatAPI: { sendMessage: api.send, getConversation: api.history }, describeError: (e: Error) => e.message, normalizeError: () => ({ isOffline: false }) }));
+vi.mock('../services/connections', () => ({ connectionRequest: api.request }));
 import { useChat } from '../hooks/useChat';
 const message = { id: 'reply', conversationId: 'old', role: 'assistant' as const, content: 'late reply', timestamp: '', createdAt: '', updatedAt: '' };
 beforeEach(() => vi.clearAllMocks());
@@ -46,4 +47,15 @@ describe('请求与会话隔离', () => {
     expect(result.current.loading).toBe(false);
     expect(result.current.messages.filter(item => item.role === 'assistant').map(item => item.content)).toEqual(['new reply']);
   });
+});
+
+it('网络失败重发沿用同一个请求 ID，成功后的新消息使用新的 ID', async () => {
+ api.send.mockRejectedValueOnce(new Error('network')).mockResolvedValue({ conversationId: 'old', message });
+ const { result } = renderHook(() => useChat());
+ await act(async () => { await result.current.send('use app'); });
+ await act(async () => { await result.current.send('use app'); });
+ expect(api.send.mock.calls[0][0].requestId).toBe(api.send.mock.calls[1][0].requestId);
+ expect(result.current.messages.filter(m => m.role === 'user')).toHaveLength(1);
+ await act(async () => { await result.current.send('use app'); });
+ expect(api.send.mock.calls[2][0].requestId).not.toBe(api.send.mock.calls[1][0].requestId);
 });

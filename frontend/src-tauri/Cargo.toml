@@ -1,6 +1,6 @@
 [package]
 name = "soren"
-version = "0.4.3"
+version = "0.4.8"
 description = "Soren — 有长期记忆的桌面 AI 助手"
 authors = ["Soren"]
 edition = "2021"

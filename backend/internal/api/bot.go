@@ -46,6 +46,13 @@ func botID(c *gin.Context) string {
 	return agent.DefaultBotID
 }
 func RegisterAgents(g *gin.RouterGroup, s *agent.Service) {
+	g.POST("/chat/requests/:id/cancel", func(c *gin.Context) {
+		if err := s.CancelChatRequest(c.Param("id"), botID(c)); err != nil {
+			c.JSON(409, gin.H{"error": err.Error()})
+			return
+		}
+		c.Status(204)
+	})
 	g.POST("/bots/draft", func(c *gin.Context) {
 		if s.Demo {
 			c.JSON(409, gin.H{"error": "请先在设置中连接模型，再生成职责草稿"})
@@ -210,6 +217,14 @@ func RegisterAgents(g *gin.RouterGroup, s *agent.Service) {
 			return
 		}
 		c.JSON(200, runs)
+	})
+	g.GET("/runs/:id", func(c *gin.Context) {
+		var run agent.Run
+		if s.DB.First(&run, "id = ? AND owner_bot_id = ?", c.Param("id"), botID(c)).Error != nil {
+			c.JSON(404, gin.H{"error": "任务不存在"})
+			return
+		}
+		c.JSON(200, run)
 	})
 	g.POST("/runs", func(c *gin.Context) {
 		var req struct {

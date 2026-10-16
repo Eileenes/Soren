@@ -13,11 +13,12 @@ import (
 )
 
 type Connection struct {
-	ID          string       `gorm:"primaryKey" json:"id"`
-	Kind        string       `json:"kind"`
-	Name        string       `json:"name"`
-	Account     string       `json:"account"`
-	Endpoint    string       `json:"endpoint,omitempty"`
+	ID       string `gorm:"primaryKey" json:"id"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Account  string `json:"account"`
+	Endpoint string `json:"endpoint,omitempty"`
+	// Deprecated: retained for database/older-client compatibility; connections are workspace-wide.
 	AllowedBots []string     `gorm:"serializer:json;type:text" json:"allowedBots"`
 	Tools       []RemoteTool `gorm:"serializer:json;type:text" json:"tools"`
 	Enabled     bool         `json:"enabled"`
@@ -130,7 +131,7 @@ type Identity struct {
 }
 
 func migrate(db *gorm.DB) error {
-	if e := db.AutoMigrate(&Connection{}, &Invocation{}, &Transcript{}, &Identity{}, &Artifact{}); e != nil {
+	if e := db.AutoMigrate(&Connection{}, &Invocation{}, &Transcript{}, &Identity{}, &Artifact{}, &FileArtifact{}); e != nil {
 		return e
 	}
 	return db.Model(&Invocation{}).Where("status = ?", "running").Updates(map[string]any{"status": "unknown", "result": "服务在操作期间退出，结果待核实；不会自动重试。"}).Error

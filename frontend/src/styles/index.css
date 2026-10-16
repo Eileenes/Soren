@@ -1063,3 +1063,7 @@ button:disabled { cursor: not-allowed; }
 .template-bot-picker strong { font-size:14px; font-weight:600; overflow-wrap:anywhere; }
 .template-bot-picker small { font-size:11px; color:rgb(var(--soren-ink-3)); }
 @media(max-width:540px) { .template-card-grid { grid-template-columns:1fr; } .template-card { padding:26px 18px 18px; } }
+
+/* 版本号在加载、空间选择及主界面都可见；侧栏底部留出空间。 */
+.app-version { position:fixed; left:16px; bottom:8px; z-index:80; pointer-events:none; color:rgb(var(--soren-ink-2)); background:var(--canvas); border-radius:4px; padding:2px 5px; font-size:11px; line-height:16px; font-variant-numeric:tabular-nums; }
+.app-sidebar.bot-inbox { padding-bottom:max(34px,env(safe-area-inset-bottom)); }

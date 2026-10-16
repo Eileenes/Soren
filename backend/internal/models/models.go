@@ -12,6 +12,7 @@ import (
 // 注意：UUID 与时间戳统一由 BeforeCreate 钩子生成，不依赖数据库函数，
 // 以保证同一套模型可以同时跑在 SQLite（桌面端默认）和 PostgreSQL 上。
 type Message struct {
+	ToolRunID      string    `gorm:"index" json:"toolRunId,omitempty"`
 	ID             uuid.UUID `gorm:"type:varchar(36);primary_key" json:"id"`
 	ConversationID uuid.UUID `gorm:"type:varchar(36);not null;index" json:"conversationId"`
 	Role           string    `gorm:"type:varchar(20);not null" json:"role"` // user, assistant, system

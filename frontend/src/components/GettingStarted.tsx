@@ -7,7 +7,7 @@ const STEPS: {title: string; detail: string; action: string; view: ViewId; optio
   {title: '连接模型', detail: '在设置中填写接口地址、API Key 和模型名称，保存后先发一句话验证。', action: '去配置模型', view: 'settings'},
   {title: '设置你的 Bot', detail: '选择头像、填写职责。也可以直接使用默认 Soren，之后再创建更多 Bot。', action: '管理 Bot', view: 'bots', optional: true},
   {title: '尝试第一个任务', detail: '让 Bot 制定三天学习计划并保存为 Markdown。展开任务查看工具记录和成果。', action: '填写示例任务', view: 'tasks'},
-  {title: '连接常用应用', detail: '按需连接 Gmail 或 Notion，并分配给 Bot。发送邮件等操作需你确认后继续。', action: '去连接应用', view: 'channels', optional: true},
+  {title: '连接常用应用', detail: '按需连接 Gmail 或 Notion，当前空间的所有 Bot 和群聊即可使用。发送邮件等操作需你确认后继续。', action: '去连接应用', view: 'channels', optional: true},
 ];
 type Progress = {seen: boolean; active: boolean; step: number};
 function readProgress(): Progress {

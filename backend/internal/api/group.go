@@ -310,11 +310,12 @@ func (h *GroupHandler) SendMessage(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Content   string       `json:"content"`
-		Mentions  []string     `json:"mentions"`
-		Mode      string       `json:"mode"`
-		RequestID string       `json:"requestId"`
-		Config    *llm.Options `json:"config,omitempty"`
+		Content       string       `json:"content"`
+		Mentions      []string     `json:"mentions"`
+		Mode          string       `json:"mode"`
+		RequestID     string       `json:"requestId"`
+		ToolExecution bool         `json:"toolExecution"`
+		Config        *llm.Options `json:"config,omitempty"`
 	}
 	if c.ShouldBindJSON(&req) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "发言内容无效"})
@@ -322,12 +323,13 @@ func (h *GroupHandler) SendMessage(c *gin.Context) {
 	}
 
 	result, err := h.orch.Speak(c.Request.Context(), group.SpeakRequest{
-		GroupID:   id,
-		Content:   req.Content,
-		Mentions:  req.Mentions,
-		Mode:      req.Mode,
-		RequestID: req.RequestID,
-		Config:    req.Config,
+		GroupID:       id,
+		Content:       req.Content,
+		Mentions:      req.Mentions,
+		Mode:          req.Mode,
+		RequestID:     req.RequestID,
+		ToolExecution: req.ToolExecution,
+		Config:        req.Config,
 	})
 	if err != nil {
 		code := http.StatusInternalServerError

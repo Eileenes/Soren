@@ -15,6 +15,8 @@
 
 企业服务通过 PostgreSQL advisory lock 限制为一个实例。不要绕过该限制扩多副本：现有运行时的启动恢复会修改任务状态，必须先完成分布式任务租约与恢复设计。
 
+部署到公司 IngressHub 时，请使用 [IngressHub 接入说明](INGRESSHUB-DEPLOYMENT.md) 的 `ENTERPRISE_AUTH_MODE=ingresshub` 模式，复用平台 SSO；下面的独立 OAuth 应用申请和 Compose 网关配置适用于独立部署。
+
 ## 2. 公司身份服务要求
 
 向 IdP 管理员申请一个服务端 OAuth 应用，回调为：

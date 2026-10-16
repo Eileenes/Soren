@@ -6,6 +6,9 @@
 !backend/cmd/**
 !backend/internal/
 !backend/internal/**
+!deploy/
+!deploy/enterprise/
+!deploy/enterprise/entrypoint.sh
 **/*_test.go
 **/.env*
 **/*.db*

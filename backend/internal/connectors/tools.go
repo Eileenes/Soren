@@ -3,6 +3,7 @@ package connectors
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -231,35 +232,58 @@ func (t bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	return t.base.RoundTrip(clone)
 }
-func publicTransport() *http.Transport {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
-	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-		host, port, e := net.SplitHostPort(address)
-		if e != nil {
-			return nil, e
-		}
-		ips, e := net.DefaultResolver.LookupIPAddr(ctx, host)
-		if e != nil {
-			return nil, e
-		}
-		if len(ips) == 0 {
-			return nil, errors.New("服务地址无法解析")
-		}
-		for _, ip := range ips {
-			if ip.IP.IsPrivate() || ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast() || ip.IP.IsUnspecified() || ip.IP.IsMulticast() {
-				return nil, errors.New("远程服务不允许访问本机或内网地址")
-			}
-		}
-		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+
+// Resolve and pin the public target before selecting the administrator's proxy.
+// CONNECT uses the validated IP; TLS still verifies the original hostname. This
+// allows enterprise egress without letting proxy-side DNS bypass SSRF checks.
+type publicRoundTripper struct{}
+
+func publicTransport() http.RoundTripper { return publicRoundTripper{} }
+func (publicRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Scheme != "https" || r.URL.User != nil {
+		return nil, errors.New("远程服务必须使用 HTTPS")
 	}
-	return transport
+	host := r.URL.Hostname()
+	port := r.URL.Port()
+	if port == "" {
+		port = "443"
+	}
+	ips, e := net.DefaultResolver.LookupIPAddr(r.Context(), host)
+	if e != nil {
+		return nil, e
+	}
+	if len(ips) == 0 {
+		return nil, errors.New("服务地址无法解析")
+	}
+	for _, ip := range ips {
+		if ip.IP.IsPrivate() || ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast() || ip.IP.IsUnspecified() || ip.IP.IsMulticast() {
+			return nil, errors.New("远程服务不允许访问本机或内网地址")
+		}
+	}
+	proxy, e := http.ProxyFromEnvironment(r)
+	if e != nil {
+		return nil, e
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = http.ProxyURL(proxy)
+	transport.DisableKeepAlives = true
+	transport.DialContext = (&net.Dialer{Timeout: 10 * time.Second}).DialContext
+	transport.TLSClientConfig = &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
+	clone := r.Clone(r.Context())
+	target := *r.URL
+	target.Host = net.JoinHostPort(ips[0].IP.String(), port)
+	clone.URL = &target
+	clone.Host = r.URL.Host
+	return transport.RoundTrip(clone)
 }
 func (s *Service) mcpSession(ctx context.Context, endpoint, token string) (*mcp.ClientSession, error) {
 	if e := validEndpoint(endpoint); e != nil {
 		return nil, e
 	}
-	transport := publicTransport()
+	transport := s.MCPTransport
+	if transport == nil {
+		transport = publicTransport()
+	}
 	client := &http.Client{Transport: bearerTransport{transport, token}, Timeout: 45 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("MCP 重定向未获授权") }}
 	return mcp.NewClient(&mcp.Implementation{Name: "Soren", Version: "0.3.0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: client, MaxRetries: -1, DisableStandaloneSSE: true}, nil)
 }

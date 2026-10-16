@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { GettingStarted, useGettingStarted } from './components/GettingStarted';
 import { WorkspaceProvider, useWorkspace } from './components/WorkspaceProvider';
 import { CompanyPanel } from './components/CompanyPanel';
+import { AppVersion } from './components/AppVersion';
 import { SettingsNav } from './components/layout/SettingsNav';
 import { ConversationHistoryPage } from './pages/ConversationHistoryPage';
 import { TemplateImportHost, TemplatePublisher } from './components/BotTemplates';
@@ -558,5 +559,5 @@ export function AppWorkspace() {
 }
 
 export default function App() {
-  return <WorkspaceProvider><AppWorkspace /></WorkspaceProvider>;
+  return <><WorkspaceProvider welcome><AppWorkspace /></WorkspaceProvider><AppVersion /></>;
 }

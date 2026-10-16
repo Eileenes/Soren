@@ -80,7 +80,7 @@ type harness struct {
 	mu        sync.Mutex
 }
 
-func newHarness(t *testing.T) *harness {
+func newHarness(t *testing.T, authMode ...string) *harness {
 	t.Helper()
 	h := &harness{db: testDB(t), client: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +108,9 @@ func newHarness(t *testing.T) *harness {
 	h.server = httptest.NewUnstartedServer(nil)
 	root := "http://" + h.server.Listener.Addr().String()
 	c := Config{PublicURL: root, Name: "Test Company", DatabaseURL: "postgres://test@localhost/test", DataDir: t.TempDir(), AuthorizationURL: idp.URL + "/authorize", TokenURL: idp.URL + "/token", UserInfoURL: idp.URL + "/userinfo", ClientID: "test-client", ClientSecret: "test-secret", SubjectClaim: "sub", Scope: "openid profile", AuthMethod: "client_secret_basic", AllowedSubjects: map[string]bool{"alice": true, "bob": true}, Key: bytes.Repeat([]byte{7}, 32), Development: true, SessionTTL: time.Hour, Concurrency: 2}
+	if len(authMode) > 0 {
+		c.AuthMode = authMode[0]
+	}
 	var mutex sync.Mutex
 	handlers := map[string]http.Handler{}
 	factory := func(u User) (http.Handler, error) {
@@ -453,5 +456,77 @@ func TestModelLimitUsesCompanyModelAndChecksDisabledUser(t *testing.T) {
 	allowed = false
 	if _, err := p.Chat(context.Background(), nil, nil); err == nil {
 		t.Fatal("disabled user invoked model")
+	}
+}
+
+func TestSaveUserReusesIdentityAndKeepsDisabledAccountsDisabled(t *testing.T) {
+	h := newHarness(t)
+	first, err := h.s.saveUser("alice", "First Name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := h.s.saveUser("alice", "Updated Name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != second.ID {
+		t.Fatal("existing identity changed")
+	}
+	var stored User
+	if err := h.db.First(&stored, "id = ?", first.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Name != "Updated Name" {
+		t.Fatal("display name not refreshed")
+	}
+	if err := h.db.Model(&stored).Update("disabled", true).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.s.saveUser("alice", "Must Not Apply"); !errors.Is(err, errUnauthorized) {
+		t.Fatalf("disabled account accepted: %v", err)
+	}
+	h.db.First(&stored, "id = ?", first.ID)
+	if !stored.Disabled || stored.Name != "Updated Name" {
+		t.Fatal("disabled identity was modified")
+	}
+}
+
+func TestSaveUserConcurrentFirstLogin(t *testing.T) {
+	h := newHarness(t)
+	const requests = 6
+	results := make(chan User, requests)
+	failures := make(chan error, requests)
+	var wg sync.WaitGroup
+	for i := 0; i < requests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			u, err := h.s.saveUser("alice", "Alice")
+			if err != nil {
+				failures <- err
+				return
+			}
+			results <- u
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(failures)
+	for err := range failures {
+		t.Errorf("concurrent login: %v", err)
+	}
+	var id string
+	for u := range results {
+		if id != "" && id != u.ID {
+			t.Error("concurrent login created another identity")
+		}
+		id = u.ID
+	}
+	var count int64
+	if err := h.db.Model(&User{}).Where("subject = ?", "alice").Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("created %d identities", count)
 	}
 }

@@ -326,6 +326,7 @@ func groupSchemaMissing(db *gorm.DB) bool {
 		name  string
 	}{
 		{&models.Message{}, "speaker_bot_id"},
+		{&models.Message{}, "tool_run_id"},
 		{&models.GroupTurn{}, "request_fingerprint"},
 		{&models.GroupChat{}, "pinned"},
 		{&models.GroupChat{}, "pinned_at"},

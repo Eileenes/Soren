@@ -1,6 +1,6 @@
 {
   "name": "soren-frontend",
-  "version": "0.4.3",
+  "version": "0.4.8",
   "private": true,
   "type": "module",
   "scripts": {

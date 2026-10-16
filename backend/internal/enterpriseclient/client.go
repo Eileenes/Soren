@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -432,6 +433,17 @@ func (s *Client) proxy(c *gin.Context) {
 		return
 	}
 	defer res.Body.Close()
+	// Only the authenticated attachment endpoint may stream binary data.
+	if c.Request.Method == "GET" && attachmentPath.MatchString(path) && res.StatusCode == 200 {
+		if res.ContentLength < 0 || res.ContentLength > 200<<20 {
+			errorJSON(c, 502, errors.New("成果文件过大或长度未知"))
+			return
+		}
+		c.Header("Content-Disposition", res.Header.Get("Content-Disposition"))
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.DataFromReader(200, res.ContentLength, "application/octet-stream", io.LimitReader(res.Body, res.ContentLength), nil)
+		return
+	}
 	raw, err := io.ReadAll(io.LimitReader(res.Body, (4<<20)+1))
 	if err != nil || len(raw) > 4<<20 || (len(raw) > 0 && !json.Valid(raw)) || res.StatusCode >= 300 && res.StatusCode < 400 {
 		errorJSON(c, 502, errors.New("公司服务器响应无效或过大"))
@@ -439,3 +451,5 @@ func (s *Client) proxy(c *gin.Context) {
 	}
 	c.Data(res.StatusCode, "application/json", raw)
 }
+
+var attachmentPath = regexp.MustCompile(`^/api/runs/[a-f0-9-]{36}/files/[a-f0-9-]{36}$`)

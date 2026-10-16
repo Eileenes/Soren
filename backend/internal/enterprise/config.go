@@ -17,6 +17,7 @@ type Config struct {
 	PublicURL, Name, Listen, DatabaseURL, DataDir                   string
 	AuthorizationURL, TokenURL, UserInfoURL, ClientID, ClientSecret string
 	SubjectClaim, Scope, AuthMethod                                 string
+	AuthMode                                                        string
 	AllowedSubjects                                                 map[string]bool
 	Key                                                             []byte
 	Development                                                     bool
@@ -44,6 +45,7 @@ func LoadConfig() (Config, error) {
 		return fallback
 	}
 	c := Config{
+		AuthMode:  value("ENTERPRISE_AUTH_MODE", "oauth"),
 		PublicURL: value("ENTERPRISE_PUBLIC_URL", ""), Name: value("ENTERPRISE_NAME", "公司空间"),
 		Listen: value("ENTERPRISE_LISTEN", "127.0.0.1:8091"), DatabaseURL: value("DATABASE_URL", ""),
 		DataDir: value("SOREN_DATA_DIR", "./data"), Development: os.Getenv("ENTERPRISE_DEV") == "1",
@@ -68,33 +70,55 @@ func LoadConfig() (Config, error) {
 
 func (c *Config) Validate() error {
 	var err error
+	if c.AuthMode == "" {
+		c.AuthMode = "oauth"
+	}
+	if c.AuthMode != "oauth" && c.AuthMode != "ingresshub" {
+		return errors.New("ENTERPRISE_AUTH_MODE 仅支持 oauth 或 ingresshub")
+	}
 	if c.PublicURL, err = Origin(c.PublicURL, c.Development); err != nil {
 		return err
 	}
 	if len(c.Key) != 32 {
 		return errors.New("ENTERPRISE_VAULT_KEY 必须是 Base64 编码的 32 字节随机密钥")
 	}
-	if c.DatabaseURL == "" || c.ClientID == "" || c.ClientSecret == "" || len(c.AllowedSubjects) == 0 {
-		return errors.New("请配置 DATABASE_URL、OAuth 客户端凭据和 ENTERPRISE_ALLOWED_SUBJECTS")
+	if c.DatabaseURL == "" || len(c.AllowedSubjects) == 0 {
+		return errors.New("请配置 DATABASE_URL 和 ENTERPRISE_ALLOWED_SUBJECTS")
 	}
 	db, e := url.Parse(c.DatabaseURL)
 	if e != nil || (db.Scheme != "postgres" && db.Scheme != "postgresql") || db.Hostname() == "" {
 		return errors.New("DATABASE_URL 必须是 PostgreSQL URL")
 	}
-	if c.AuthMethod != "client_secret_basic" && c.AuthMethod != "client_secret_post" {
-		return errors.New("不支持的 OAuth 客户端认证方式")
-	}
-	for _, raw := range []string{c.AuthorizationURL, c.TokenURL, c.UserInfoURL} {
-		u, e := url.Parse(raw)
-		if e != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-			return errors.New("OAuth 接口地址无效")
+	if c.AuthMode == "oauth" {
+		if c.ClientID == "" || c.ClientSecret == "" {
+			return errors.New("请配置 OAuth 客户端凭据")
 		}
-		if _, e = Origin(u.Scheme+"://"+u.Host, c.Development); e != nil {
-			return e
+		if c.AuthMethod != "client_secret_basic" && c.AuthMethod != "client_secret_post" {
+			return errors.New("不支持的 OAuth 客户端认证方式")
+		}
+		for _, raw := range []string{c.AuthorizationURL, c.TokenURL, c.UserInfoURL} {
+			u, e := url.Parse(raw)
+			if e != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+				return errors.New("OAuth 接口地址无效")
+			}
+			if _, e = Origin(u.Scheme+"://"+u.Host, c.Development); e != nil {
+				return e
+			}
+		}
+		if c.SubjectClaim == "" {
+			return errors.New("请配置 OAuth 用户 ID 字段")
 		}
 	}
-	if c.Concurrency < 1 || c.Concurrency > 128 || c.SessionTTL <= 0 || c.SessionTTL > 24*time.Hour || c.SubjectClaim == "" || len(c.Name) > 200 {
+	if c.Concurrency < 1 || c.Concurrency > 128 || c.SessionTTL <= 0 || c.SessionTTL > 24*time.Hour || len(c.Name) > 200 {
 		return errors.New("企业服务参数无效")
 	}
 	return nil
+}
+
+// Keep OAuth and gateway identities in distinct namespaces even for equal sub values.
+func (c Config) identityProvider() string {
+	if c.AuthMode == "ingresshub" {
+		return ingressHubIssuer
+	}
+	return c.UserInfoURL
 }
