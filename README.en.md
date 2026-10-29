@@ -1,3 +1,5 @@
+> **Version note:** This guide describes Developer Preview **0.4.3**. For installation instructions and capabilities of the current `main` branch, see the [main README](README.md). The content below is retained as documentation for 0.4.3.
+
 <p align="center"><a href="README.md">简体中文</a> · <strong>English</strong></p>
 
 <div align="center">
